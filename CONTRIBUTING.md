@@ -26,7 +26,7 @@ You need Node 22.12+, Python 3.10+, FFmpeg on PATH and, for real runs, the One C
 | `packages/core/src/jev` | Jev questions, normalisation, ranking, dedupe |
 | `packages/core/src/transcription` | faster-whisper bridge (`python/transcribe.py`) |
 | `packages/core/src/discovery` | transcript → clip candidates |
-| `packages/core/src/plan` | edit-plan schema and planners (Claude Code, OpenCode, template) |
+| `packages/core/src/plan` | edit-plan schema and planners (OpenRouter via One, Claude Code, OpenCode, template) |
 | `packages/core/src/ffmpeg` | FFmpeg / FFprobe engine |
 | `packages/remotion` | Remotion compositions and renderer |
 | `apps/web` | Next.js UI |
