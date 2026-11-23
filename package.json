@@ -32,6 +32,8 @@
   },
   "dependencies": {
     "@oneclip/core": "workspace:*",
-    "@oneclip/remotion": "workspace:*"
+    "@oneclip/remotion": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   }
 }

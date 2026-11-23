@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "description": "Synthetic long-video cases written for OneClip. Each case is a set of candidate clips from one imagined video, labelled by how a human editor would rate them as shorts: good, average or bad. 'standalone' is false when the clip only makes sense with earlier context.",
+  "k": 2,
+  "cases": [
+    {
+      "id": "case-founder-podcast",
+      "title": "Founder podcast, 60 minutes",
+      "candidates": [
+        {
+          "id": "fp-1",
+          "label": "good",
+          "standalone": true,
+          "openingText": "We almost sold the company for two million dollars, and saying no was the worst week of my life.",
+          "transcript": "We almost sold the company for two million dollars, and saying no was the worst week of my life. My co-founder wanted the money. I thought we were a year away from something much bigger. We didn't talk for six days. Three years later the same buyer came back and paid forty.",
+          "precedingContext": "Let's go back to 2021.",
+          "followingContext": "So what changed in those three years?",
+          "duration": 28
+        },
+        {
+          "id": "fp-2",
+          "label": "good",
+          "standalone": true,
+          "openingText": "The best hire I ever made failed our coding test.",
+          "transcript": "The best hire I ever made failed our coding test. She ran out of time because she was writing tests for her solution. Everyone else finished and nobody else wrote a single test. I overruled the panel, and she ended up running our whole platform team.",
+          "precedingContext": "People ask me about hiring all the time.",
+          "followingContext": "We changed the test after that.",
+          "duration": 24
+        },
+        {
+          "id": "fp-3",
+          "label": "average",
+          "standalone": true,
+          "openingText": "I think culture is really important for a startup.",
+          "transcript": "I think culture is really important for a startup. You want people who care about the work and about each other. We try to hire for that, and we do a lot of things like team lunches and offsites to keep it strong.",
+          "precedingContext": "",
+          "followingContext": "But it's hard to measure.",
+          "duration": 22
+        },
+        {
+          "id": "fp-4",
+          "label": "bad",
+          "standalone": false,
+          "openingText": "Yeah, exactly, and that's what I was getting at before with the second round.",
+          "transcript": "Yeah, exactly, and that's what I was getting at before with the second round. Because if you go back to what they said about the terms, it's the same thing again. So we kind of just went with that one.",
+          "precedingContext": "The second round had two term sheets, one with a board seat and one without.",
+          "followingContext": "Anyway, that's the fundraising story.",
+          "duration": 21
+        },
+        {
+          "id": "fp-5",
+          "label": "bad",
+          "standalone": true,
+          "openingText": "Thanks so much for having me, it's great to be here.",
+          "transcript": "Thanks so much for having me, it's great to be here. I've been a listener for a long time, so this is a bit surreal. Yeah, happy to talk about whatever you want.",
+          "precedingContext": "",
+          "followingContext": "So let's start with your background.",
+          "duration": 20
+        }
+      ]
+    },
+    {
+      "id": "case-cooking-tutorial",
+      "title": "Cooking tutorial, 25 minutes",
+      "candidates": [
+        {
+          "id": "ct-1",
+          "label": "good",
+          "standalone": true,
+          "openingText": "Restaurants don't use better ingredients than you, they use more salt and more heat.",
+          "transcript": "Restaurants don't use better ingredients than you, they use more salt and more heat. Your pan is probably not hot enough. Wait until a drop of water dances instead of sizzling, then add the oil, then the food. You'll get a crust in half the time.",
+          "precedingContext": "",
+          "followingContext": "Now let's do the vegetables.",
+          "duration": 23
+        },
+        {
+          "id": "ct-2",
+          "label": "average",
+          "standalone": true,
+          "openingText": "For the sauce we're going to use some butter and garlic.",
+          "transcript": "For the sauce we're going to use some butter and garlic. Melt the butter on medium, add the garlic, and let it cook for about a minute until it smells good. Then add a splash of the pasta water.",
+          "precedingContext": "The pasta is nearly done.",
+          "followingContext": "Now toss everything together.",
+          "duration": 21
+        },
+        {
+          "id": "ct-3",
+          "label": "bad",
+          "standalone": false,
+          "openingText": "And then you just do the same with the other half.",
+          "transcript": "And then you just do the same with the other half. Same as before, same timing. Okay, and that one's done too. Put those aside.",
+          "precedingContext": "Slice the first half of the onion thinly and fry it until golden.",
+          "followingContext": "Next we'll make the dressing.",
+          "duration": 20
+        },
+        {
+          "id": "ct-4",
+          "label": "good",
+          "standalone": true,
+          "openingText": "If your rice is always mushy, you're making one mistake before the pot is even on.",
+          "transcript": "If your rice is always mushy, you're making one mistake before the pot is even on. You're not rinsing it. That cloudy water is loose starch, and it turns into glue. Rinse until the water runs clear, then use a little less water than the bag says.",
+          "precedingContext": "",
+          "followingContext": "Now the rice can cook while we prep.",
+          "duration": 24
+        }
+      ]
+    },
+    {
+      "id": "case-tech-talk",
+      "title": "Conference tech talk, 40 minutes",
+      "candidates": [
+        {
+          "id": "tt-1",
+          "label": "good",
+          "standalone": true,
+          "openingText": "We deleted half our microservices last year and nobody noticed.",
+          "transcript": "We deleted half our microservices last year and nobody noticed. Not the customers, not the dashboards. They had been splitting one job into six network calls. We merged them back into two services, latency dropped by forty percent and our cloud bill fell by a third.",
+          "precedingContext": "",
+          "followingContext": "Let me show you how we picked which ones to merge.",
+          "duration": 25
+        },
+        {
+          "id": "tt-2",
+          "label": "average",
+          "standalone": true,
+          "openingText": "Observability is about understanding your system from its outputs.",
+          "transcript": "Observability is about understanding your system from its outputs. That usually means logs, metrics and traces. Each one gives you a different view, and together they help you figure out what's going on when something breaks.",
+          "precedingContext": "",
+          "followingContext": "Let's look at each in turn.",
+          "duration": 22
+        },
+        {
+          "id": "tt-3",
+          "label": "bad",
+          "standalone": false,
+          "openingText": "So as you can see on this graph, the blue line is the one I mentioned.",
+          "transcript": "So as you can see on this graph, the blue line is the one I mentioned. It goes up here, then flattens out, and that's the part we care about. The red one we can ignore for now.",
+          "precedingContext": "The next slide shows p99 latency before and after the change.",
+          "followingContext": "Questions so far?",
+          "duration": 20
+        },
+        {
+          "id": "tt-4",
+          "label": "bad",
+          "standalone": true,
+          "openingText": "Okay, can everyone in the back hear me?",
+          "transcript": "Okay, can everyone in the back hear me? Great. Let me just get my slides up. One second. There we go. So, hi, I'm going to talk about scaling today.",
+          "precedingContext": "",
+          "followingContext": "First, a bit about me.",
+          "duration": 20
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "description": "Synthetic clip openings, written for OneClip. Not taken from any real video. Each has the hook type a human editor would assign and a strength label.",
+  "examples": [
+    {
+      "id": "hx-01",
+      "hookType": "contrarian",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "Stop drinking water the moment you wake up.",
+      "transcript": "Stop drinking water the moment you wake up. Everyone tells you to, but your body has been fasting for eight hours and what it is short on first is salt, not water. Add a pinch of salt to that first glass and the morning fog goes away in about ten minutes.",
+      "precedingContext": "",
+      "followingContext": "Okay, now let's talk about coffee timing.",
+      "duration": 18
+    },
+    {
+      "id": "hx-02",
+      "hookType": "curiosity",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "There is one question that tells me in five seconds whether a startup will survive.",
+      "transcript": "There is one question that tells me in five seconds whether a startup will survive. I ask the founder: who was your last customer to cancel, and what did they say? The ones who know the name and the exact words are the ones still around two years later.",
+      "precedingContext": "I've invested in about forty companies now.",
+      "followingContext": "The ones who don't know usually haven't talked to a customer in months.",
+      "duration": 21
+    },
+    {
+      "id": "hx-03",
+      "hookType": "surprising",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "Ninety percent of the bugs we shipped last year came from four lines of config.",
+      "transcript": "Ninety percent of the bugs we shipped last year came from four lines of config. Not the new features, not the rewrite. Four lines that nobody reviewed because they weren't code. We now review config like code and our incident count dropped by two thirds.",
+      "precedingContext": "Let me share a number from our postmortems.",
+      "followingContext": "So the lesson is pretty boring.",
+      "duration": 19
+    },
+    {
+      "id": "hx-04",
+      "hookType": "emotional_stakes",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "I had eleven days of runway left when I made the call that saved the company.",
+      "transcript": "I had eleven days of runway left when I made the call that saved the company. I phoned our biggest customer and asked them to prepay a full year. I was shaking. They said yes in four minutes, and that cheque kept fourteen people employed.",
+      "precedingContext": "",
+      "followingContext": "People ask me what I learned from that.",
+      "duration": 20
+    },
+    {
+      "id": "hx-05",
+      "hookType": "storytelling",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "It was two in the morning and the whole site was down when my phone rang.",
+      "transcript": "It was two in the morning and the whole site was down when my phone rang. The on-call engineer had already tried everything in the runbook. I asked one thing: what changed today? Nobody knew, and that was the real problem.",
+      "precedingContext": "",
+      "followingContext": "We rebuilt our deploy log the following week.",
+      "duration": 17
+    },
+    {
+      "id": "hx-06",
+      "hookType": "practical_value",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "Here is the three-sentence email that gets me a reply from almost anyone.",
+      "transcript": "Here is the three-sentence email that gets me a reply from almost anyone. Sentence one: why them, specifically. Sentence two: the one thing I want, small enough to say yes to. Sentence three: an easy way to say no. That last one is what makes people answer.",
+      "precedingContext": "",
+      "followingContext": "Try it this week and tell me how it goes.",
+      "duration": 22
+    },
+    {
+      "id": "hx-07",
+      "hookType": "problem_solution",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "If your sourdough comes out flat, it's almost never the starter.",
+      "transcript": "If your sourdough comes out flat, it's almost never the starter. It's the shaping. Without surface tension the dough spreads instead of rising. Do two extra folds before the final proof and drag the ball toward you on a dry counter. That's it.",
+      "precedingContext": "A lot of you sent me photos of flat loaves.",
+      "followingContext": "Next week I'll show the scoring.",
+      "duration": 20
+    },
+    {
+      "id": "hx-08",
+      "hookType": "unexpected_revelation",
+      "strength": "strong",
+      "standalone": true,
+      "openingText": "I've never told anyone this, but our viral launch video was the fourth take of a mistake.",
+      "transcript": "I've never told anyone this, but our viral launch video was the fourth take of a mistake. I tripped over the cable in the first take and everyone laughed, so we kept tripping on purpose. The trip was the part people shared.",
+      "precedingContext": "",
+      "followingContext": "So now we leave mistakes in.",
+      "duration": 16
+    },
+    {
+      "id": "hx-09",
+      "hookType": "practical_value",
+      "strength": "average",
+      "standalone": true,
+      "openingText": "So one thing that can help with productivity is planning your day.",
+      "transcript": "So one thing that can help with productivity is planning your day. I usually write down a few tasks the night before. It doesn't always work, but on most days it means I start with something specific instead of email.",
+      "precedingContext": "There are lots of productivity tips out there.",
+      "followingContext": "Another thing is sleep.",
+      "duration": 17
+    },
+    {
+      "id": "hx-10",
+      "hookType": "storytelling",
+      "strength": "average",
+      "standalone": true,
+      "openingText": "A couple of years ago I started running in the mornings.",
+      "transcript": "A couple of years ago I started running in the mornings. At first it was hard and I skipped a lot. Over time it got easier and now I do it most days, and I think it helps my mood.",
+      "precedingContext": "",
+      "followingContext": "Anyway, back to the main topic.",
+      "duration": 15
+    },
+    {
+      "id": "hx-11",
+      "hookType": "curiosity",
+      "strength": "average",
+      "standalone": true,
+      "openingText": "There's an interesting thing about how memory works.",
+      "transcript": "There's an interesting thing about how memory works. When you recall something, you sort of rebuild it, so it can change a little each time. That's why two people can remember the same event differently.",
+      "precedingContext": "",
+      "followingContext": "Researchers have studied this a lot.",
+      "duration": 14
+    },
+    {
+      "id": "hx-12",
+      "hookType": "none",
+      "strength": "weak",
+      "standalone": true,
+      "openingText": "Hey everyone, welcome back to the channel.",
+      "transcript": "Hey everyone, welcome back to the channel. Before we start, don't forget to like and subscribe, it really helps us out. Today we're going to talk about a few things, so let's get into it.",
+      "precedingContext": "",
+      "followingContext": "First up is budgeting.",
+      "duration": 13
+    },
+    {
+      "id": "hx-13",
+      "hookType": "none",
+      "strength": "weak",
+      "standalone": false,
+      "openingText": "Yeah, so like I said, that's basically what happened with the second one.",
+      "transcript": "Yeah, so like I said, that's basically what happened with the second one. And then after that we did the same thing again with the other team, and it kind of worked out the same way.",
+      "precedingContext": "The first approach was the migration we talked about earlier, where we moved the billing service first.",
+      "followingContext": "Which brings us to the third option.",
+      "duration": 12
+    },
+    {
+      "id": "hx-14",
+      "hookType": "none",
+      "strength": "weak",
+      "standalone": false,
+      "openingText": "Right, and that's why the number on the slide is different.",
+      "transcript": "Right, and that's why the number on the slide is different. If you look at the left column you'll see it, it's the one we adjusted. Okay, next slide.",
+      "precedingContext": "Someone asked about the revenue figure in the chart.",
+      "followingContext": "This slide shows the team structure.",
+      "duration": 11
+    },
+    {
+      "id": "hx-15",
+      "hookType": "none",
+      "strength": "weak",
+      "standalone": true,
+      "openingText": "Um, let me just check if my microphone is working.",
+      "transcript": "Um, let me just check if my microphone is working. Can you all hear me okay? Great. Give me one second to share my screen. Okay, I think that's working now.",
+      "precedingContext": "",
+      "followingContext": "So today's agenda has three parts.",
+      "duration": 14
+    },
+    {
+      "id": "hx-16",
+      "hookType": "surprising",
+      "strength": "average",
+      "standalone": true,
+      "openingText": "Apparently most people only use about a third of the apps on their phone.",
+      "transcript": "Apparently most people only use about a third of the apps on their phone. I read that somewhere. I checked mine and it was probably true, I had a lot of games I never open.",
+      "precedingContext": "",
+      "followingContext": "So I deleted some.",
+      "duration": 13
+    }
+  ]
+}
