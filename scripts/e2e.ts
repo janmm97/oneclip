@@ -3,7 +3,7 @@
  * the real stack: FFprobe, local transcription, live Jev through the One CLI,
  * the editing planner and the renderer. Fails loudly if any stage breaks.
  *
- *   pnpm e2e [--planner template|claude-code|opencode|auto] [--renderer ffmpeg|remotion] [--quality preview|final]
+ *   pnpm e2e [--planner template|openrouter|claude-code|opencode|auto] [--renderer ffmpeg|remotion] [--quality preview|final]
  *
  * Costs: about 6 Jev calls (~1,400 input tokens each) on your TypeSafe account.
  * Stop the worker (`pnpm dev`) first: this script drains the job queue itself.
