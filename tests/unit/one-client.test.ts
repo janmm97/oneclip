@@ -1,7 +1,7 @@
 // MOCK: every One CLI reply below is a hand-written fixture shaped like real
 // `one --agent` output (captured 2026-11-23). No network, no One account needed.
 import { describe, expect, it } from "vitest";
-import { JEV_PATH, MAX_ARGV_CHARS, normalizeErrors, OneClient, OneError, OPENROUTER_CHAT_PATH, parseJevResponse, parseOpenRouterResponse, ProcError, type OneRunner } from "@oneclip/core";
+import { classifyOpenRouterError, JEV_PATH, MAX_ARGV_CHARS, normalizeErrors, OneClient, OneError, OPENROUTER_CHAT_PATH, parseJevResponse, parseOpenRouterResponse, ProcError, type OneRunner } from "@oneclip/core";
 
 type Reply = { code?: number; stdout?: string; stderr?: string } | Error;
 
@@ -142,6 +142,27 @@ describe("OneClient OpenRouter (mock runner)", () => {
     const huge = { ...body, messages: [{ role: "user" as const, content: "x".repeat(MAX_ARGV_CHARS) }] };
     await expect(new OneClient({ runner }).openRouterChat(huge)).rejects.toMatchObject({ code: "TOO_LARGE" });
     expect(calls.some((c) => c.includes("execute"))).toBe(false);
+  });
+
+  it("counts the quote-escaping Windows adds to argv, not just the JSON length", async () => {
+    const { runner, calls } = mockRunner({ list: { stdout: OR_LIST }, find: { stdout: OR_FIND } });
+    // 12,000 nested quotes: ~24,000 chars as JSON (under the limit) but ~48,000 once quoted for argv.
+    const quoted = { ...body, messages: [{ role: "user" as const, content: '"'.repeat(12_000) }] };
+    expect(JSON.stringify(quoted).length).toBeLessThan(MAX_ARGV_CHARS);
+    await expect(new OneClient({ runner }).openRouterChat(quoted)).rejects.toMatchObject({ code: "TOO_LARGE" });
+    expect(calls.some((c) => c.includes("execute"))).toBe(false);
+  });
+
+  it.each([
+    [429, "RATE_LIMITED", true],
+    [502, "UPSTREAM", true],
+    [400, "UNKNOWN", false],
+    [402, "UNKNOWN", false],
+    [401, "NOT_AUTHENTICATED", false],
+  ])("classifies an OpenRouter %s by its code", (code, want, retryable) => {
+    const e = classifyOpenRouterError(code, "OpenRouter message mentioning 500 tokens");
+    expect(e.code).toBe(want);
+    expect(e.retryable).toBe(retryable);
   });
 
   it("rejects an empty message as BAD_RESPONSE", () => {
