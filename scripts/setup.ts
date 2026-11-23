@@ -1,6 +1,6 @@
 /**
  * pnpm run setup [--skip-python] [--model base]
- * 1. Checks One CLI → sign-in → TypeSafe → Jev (prints the exact command for each missing step).
+ * 1. Checks One CLI → sign-in → TypeSafe → Jev (prints the exact command for each missing step), then the optional OpenRouter connection.
  * 2. If a Python 3.10–3.12 is found, installs faster-whisper (python/requirements.txt) for it.
  * 3. Pre-downloads the transcription model so the first job doesn't wait.
  * Never stores keys: One keeps its own credentials.
@@ -15,7 +15,7 @@ ensureDirs(cfg);
 const step = (s: string) => console.log(`\n▸ ${s}`);
 
 step("One CLI and TypeSafe");
-const one = new OneClient({ typesafeKey: cfg.typesafeKey });
+const one = new OneClient({ typesafeKey: cfg.typesafeKey, openrouterKey: cfg.openrouterKey });
 let oneOk = true;
 try {
   console.log(`  One CLI ${(await one.checkInstallation()).version}`);
@@ -28,6 +28,14 @@ try {
   oneOk = false;
   console.log(`  ✖ ${(e as Error).message}`);
   if (e instanceof OneError) console.log(`  ↳ ${e.hint}`);
+}
+if (oneOk) {
+  try {
+    await one.findOpenRouterConnection();
+    console.log(`  OpenRouter connected (AI edit plans: ${cfg.openrouterModels[0]})`);
+  } catch (e) {
+    console.log(`  · ${(e as Error).message}${e instanceof OneError ? `. ${e.hint}` : ""}`);
+  }
 }
 
 async function pythonVersion(bin: string) {

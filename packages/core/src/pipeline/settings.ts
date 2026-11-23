@@ -10,7 +10,7 @@ export const ProjectSettingsSchema = z.object({
   transcriber: z.enum(["auto", "faster-whisper", "whisper-onnx"]).default("auto"),
   model: z.enum(MODEL_SIZES).default("small"),
   language: z.string().regex(/^[a-z]{2,3}$/).optional(),
-  planner: z.enum(["auto", "claude-code", "opencode", "template"]).default("auto"),
+  planner: z.enum(["auto", "openrouter", "claude-code", "opencode", "template"]).default("auto"),
   renderer: z.enum(["remotion", "ffmpeg"]).default("remotion"),
   template: z.enum(["auto", ...TEMPLATES]).default("auto"),
   captionPreset: z.enum(["auto", ...CAPTION_PRESETS]).default("auto"),

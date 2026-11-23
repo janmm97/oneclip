@@ -23,7 +23,7 @@ flowchart LR
   C --> D[Candidate clips<br/>sentence-aligned, preset length]
   D --> E[Jev via One CLI<br/>6 scores + context + hook type]
   E --> F[Rank, penalise,<br/>de-duplicate, top N]
-  F --> G[Edit plan<br/>Claude Code / OpenCode / template]
+  F --> G[Edit plan<br/>OpenRouter via One / Claude Code /<br/>OpenCode / template]
   G --> H[Render<br/>Remotion or FFmpeg]
   H --> I[Verify with FFprobe<br/>retry once]
   I --> J[MP4 + thumbnail<br/>in the Export gallery]
@@ -48,7 +48,7 @@ flowchart LR
 | One CLI | 2.x | `npm i -g @withone/cli`, then a free One account |
 | A TypeSafe account | — | Connected in One with `one add typesafe` |
 | Python | 3.10 to 3.12 (optional) | For faster-whisper. Without it, OneClip uses Whisper on ONNX Runtime (CPU) |
-| Claude Code or OpenCode (optional) | — | For AI edit plans. Without them, the built-in template planner is used |
+| OpenRouter (optional) | — | For AI edit plans with cheap models: `one add open-router`. Claude Code or OpenCode also work. Without any of them, the built-in template planner is used |
 | Disk | ~1 GB free | Whisper model, Chrome Headless Shell (~131 MB, downloaded on the first Remotion render), renders |
 
 No GPU is needed. Everything was tested on Windows 11 on CPU; macOS and Linux use the same code paths but haven't been run end to end yet ([help wanted](CONTRIBUTING.md)).
@@ -65,6 +65,7 @@ pnpm install
 npm i -g @withone/cli
 one init          # sign up or sign in at https://withone.ai
 one add typesafe  # connect your TypeSafe account
+one add open-router  # optional: AI edit plans with cheap models
 
 pnpm run setup    # checks One → TypeSafe → Jev, installs faster-whisper if Python is there, downloads the model
 pnpm run doctor   # every check in one list; add --test-jev for one live call (~300 tokens)
@@ -94,7 +95,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
 | `pnpm test` · `pnpm lint` · `pnpm build` | Unit and integration tests · type checks · production build |
 
-Optional settings are in [`.env.example`](.env.example) (data folder, Python path, binary paths, Jev model, concurrency). None of them is a secret.
+Optional settings are in [`.env.example`](.env.example) (data folder, Python path, binary paths, Jev model, concurrency, OpenRouter models). None of them is a secret.
 
 ## How Jev ranks hooks
 
@@ -127,10 +128,11 @@ The planner turns a ranked clip into an `EditPlan`: template, layout, crop, capt
 
 | Planner | How |
 |---|---|
+| `openrouter` | One chat completion per clip through `one actions execute open-router …`, on cheap models with JSON output: `deepseek/deepseek-v4-flash`, then `tencent/hy4-flash`, then `openai/gpt-6-luna` if one is down (change them with `ONECLIP_OPENROUTER_MODELS`). No tools are sent, so the model can only return text |
 | `claude-code` | Runs `claude -p` with a JSON schema for the answer, all tools turned off, no MCP servers and no saved session |
 | `opencode` | Runs `opencode run` with the clip on stdin, every tool and permission denied and an empty working folder, and reads the first JSON object from the reply |
 | `template` | Deterministic rules, no AI, always available |
-| `auto` (default) | Claude Code, then OpenCode, then template |
+| `auto` (default) | OpenRouter via One, then Claude Code, then OpenCode, then template |
 
 If an agent's output doesn't validate, OneClip falls back to the template planner and shows why in the results.
 
@@ -145,8 +147,9 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 
 | Service | Used for | Cost |
 |---|---|---|
-| [One](https://withone.ai) | Runs the TypeSafe action and holds your credentials | See One's pricing |
+| [One](https://withone.ai) | Runs the TypeSafe and OpenRouter actions and holds your credentials | See One's pricing |
 | TypeSafe Jev | Scoring clips | About **1,400 tokens per candidate clip** on your TypeSafe account. The default 24 candidates ≈ 34k tokens per video. `pnpm run doctor --test-jev` ≈ 300 tokens. `pnpm eval:hooks` ≈ 41k tokens. Cached answers are free |
+| OpenRouter (optional) | Edit plans | One request per kept clip (about 4k characters in) on your OpenRouter account. Measured with `deepseek/deepseek-v4-flash`: **$0.0001 to $0.0006 per clip** (6 plans, average $0.0003), so about $0.002 for the default 5 clips |
 | Claude Code / OpenCode (optional) | Edit plans | One short prompt per clip on your own plan or API key |
 | YouTube oEmbed | Title and thumbnail | Free, no key |
 | Remotion | Rendering | Free for individuals and small companies; larger companies need a [Remotion company licence](https://www.remotion.dev/license) |
@@ -154,7 +157,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 ## Privacy
 
 - Your video, audio and renders never leave your machine.
-- Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to Claude Code or OpenCode if you pick them as planner.
+- Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
 - Nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
 - Projects, transcripts and the database live in `./.oneclip` (git-ignored). Delete that folder to delete everything.
@@ -169,6 +172,7 @@ Only process videos you own or are authorised to edit.
 | "One CLI not found" | `npm i -g @withone/cli`, or set `ONE_BIN` |
 | "TypeSafe not connected" | `one add typesafe`; if you have several, set `ONE_TYPESAFE_KEY` |
 | faster-whisper won't install or crashes | It needs Python 3.10–3.12. OneClip falls back to ONNX Whisper automatically. On Windows 11 with **Smart App Control** on, unsigned native Python wheels can be blocked; the ONNX fallback still works |
+| ONNX transcripts are weaker | The ONNX fallback is a lighter path: it uses Whisper small for every model setting (medium and large-v3 included), transcribes in 30 s windows, and assumes English when the language is auto. Set the language explicitly for other languages, or install faster-whisper for best results |
 | FFmpeg captions missing | Your FFmpeg has no libass; install a full build, or use the Remotion renderer |
 | First Remotion render is slow | It downloads Chrome Headless Shell once (~131 MB) |
 | "No complete thoughts fit this clip length" | Pick a shorter preset; very short or music-only videos have few complete sentences |

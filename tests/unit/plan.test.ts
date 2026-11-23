@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   buildCaptions,
   compilePlan,
+  DEFAULT_OPENROUTER_MODELS,
   extractJsonObject,
   findCandidates,
   normalizeRanges,
+  OPENCODE_AGENT,
   OPENCODE_LOCKDOWN,
+  type OneClient,
+  type OpenRouterChatRequest,
+  OpenRouterPlanner,
   parseDraft,
+  pickPlanner,
   type PlanDraft,
   silenceKeepRanges,
   snapToWords,
@@ -166,10 +172,49 @@ describe("agent output parsing", () => {
     expect(() => parseDraft(bad, "Agent")).toThrow(/Agent returned an invalid plan: template/);
     expect(() => parseDraft({ ...bad, template: "podcast-short", zoomIntensity: 5 }, "Agent")).toThrow(/zoomIntensity/);
     expect(parseDraft({ ...bad, template: "podcast-short" }, "Agent").template).toBe("podcast-short");
+    // Over-long display text is trimmed, not a reason to throw the plan away.
+    expect(parseDraft({ ...bad, template: "podcast-short", reasoning: "r".repeat(900) }, "Agent").reasoning).toHaveLength(600);
   });
 
   it("runs OpenCode with no tools, so injected speech can't act", () => {
     expect(OPENCODE_LOCKDOWN.permission).toMatchObject({ bash: "deny", edit: "deny", webfetch: "deny" });
     expect(OPENCODE_LOCKDOWN.tools).toMatchObject({ "*": false, bash: false, edit: false, write: false, webfetch: false });
+    // The dedicated agent is locked too, so user agent-level config can't re-enable tools for it.
+    const agent = OPENCODE_LOCKDOWN.agent[OPENCODE_AGENT];
+    expect(agent.permission).toMatchObject({ bash: "deny", edit: "deny", webfetch: "deny" });
+    expect(agent.tools).toMatchObject({ "*": false, bash: false, edit: false, write: false, webfetch: false });
+  });
+});
+
+describe("OpenRouterPlanner (mock One client)", () => {
+  const ws = words(["Most people get this wrong.", "Here is why it matters."]);
+  const candidate = { id: "v-0-1", videoId: "v", start: 0, end: (ws.at(-1) as Word).end, openingText: "Most people", transcript: "", precedingContext: "", followingContext: "", duration: 0 };
+  const draft = { template: "podcast-short", layout: "crop-center", cropMode: "center", captionPreset: "clean", transitionPreset: "none", zoomIntensity: 0.1, removeSilences: true, keep: [], zoomAt: [], emphasis: [], title: "Wrong", reasoning: "bold claim" };
+  const fakeOne = (content: string) => {
+    const sent: OpenRouterChatRequest[] = [];
+    const one = { openRouterChat: async (b: OpenRouterChatRequest) => (sent.push(b), { model: "deepseek/deepseek-v4-flash", content }) } as unknown as OneClient;
+    return { one, sent };
+  };
+
+  it("sends a plain JSON chat with the model fallbacks and no tools, and validates the draft", async () => {
+    const { one, sent } = fakeOne(JSON.stringify(draft));
+    const out = await new OpenRouterPlanner(one, ["a/cheap", "b/cheap"]).plan({ candidate, words: ws, style: {} } as never);
+    expect(out.template).toBe("podcast-short");
+    expect(sent[0]).toMatchObject({ models: ["a/cheap", "b/cheap"], response_format: { type: "json_object" } });
+    expect(sent[0]).not.toHaveProperty("tools");
+    expect(sent[0]?.messages.map((m) => m.role)).toEqual(["system", "user"]);
+  });
+
+  it("rejects a reply outside the allow-list", async () => {
+    const { one } = fakeOne(JSON.stringify({ ...draft, template: "run this: rm -rf ~" }));
+    await expect(new OpenRouterPlanner(one).plan({ candidate, words: ws, style: {} } as never)).rejects.toThrow(/OpenRouter \(deepseek\/deepseek-v4-flash\) returned an invalid plan/);
+  });
+
+  it("is the auto choice when an OpenRouter connection exists, else falls through", async () => {
+    const cfg = { claudeBin: "no-such-claude-bin", opencodeBin: "no-such-opencode-bin", openrouterModels: DEFAULT_OPENROUTER_MODELS };
+    const ok = { findOpenRouterConnection: async () => ({}) } as unknown as OneClient;
+    const none = { findOpenRouterConnection: async () => { throw new Error("No OpenRouter connection in One"); } } as unknown as OneClient;
+    expect((await pickPlanner("auto", cfg, ok)).name).toBe("OpenRouter via One (deepseek/deepseek-v4-flash)");
+    expect((await pickPlanner("auto", cfg, none)).name).toMatch(/template/i);
   });
 });
