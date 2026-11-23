@@ -14,6 +14,7 @@ const RENDERERS = [
 ] as const;
 const PLANNERS = [
   ["auto", "Auto (best available)"],
+  ["openrouter", "OpenRouter via One (cheap models)"],
   ["claude-code", "Claude Code"],
   ["opencode", "OpenCode"],
   ["template", "Template (no agent)"],
@@ -95,7 +96,7 @@ export function NewProject() {
         <Field label="Renderer">
           <Select options={RENDERERS} value={s.renderer} onChange={(e) => setS({ ...s, renderer: e.target.value })} />
         </Field>
-        <Field label="Edit planner" hint="Auto tries Claude Code, then OpenCode, then the built-in template.">
+        <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
       </div>

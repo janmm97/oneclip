@@ -10,13 +10,13 @@ import type { PipelineDeps } from "./pipeline.ts";
 
 /** Real dependencies. Pass extra renderers (Remotion lives in its own package). */
 export function createDeps(db: Db, cfg: Config, extra: { remotion?: VideoRenderer; one?: OneClient } = {}): PipelineDeps {
-  const one = extra.one ?? new OneClient({ typesafeKey: cfg.typesafeKey });
+  const one = extra.one ?? new OneClient({ typesafeKey: cfg.typesafeKey, openrouterKey: cfg.openrouterKey });
   return {
     db,
     cfg,
     transcriber: (s) => pickTranscriber(s.transcriber, cfg.python),
     evaluator: (cache) => new JevHookEvaluator(one, { model: cfg.jevModel, concurrency: cfg.jevConcurrency, cache }),
-    planner: (s) => pickPlanner(s.planner, cfg),
+    planner: (s) => pickPlanner(s.planner, cfg, one),
     renderers: { ffmpeg: new FfmpegRenderer(cfg.ffmpeg), remotion: extra.remotion },
   };
 }

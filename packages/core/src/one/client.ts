@@ -4,8 +4,8 @@ import { z } from "zod";
 import { ProcError, redact, runProcess, type ProcResult } from "../proc.ts";
 
 /**
- * The One CLI is the only way OneClip reaches TypeSafe. OneClip never calls
- * the TypeSafe API directly and never stores the user's One credentials: the
+ * The One CLI is the only way OneClip reaches TypeSafe and OpenRouter. OneClip
+ * never calls either API directly and never stores the user's credentials: the
  * CLI owns authentication, OneClip only spawns it.
  */
 
@@ -13,6 +13,8 @@ export type OneErrorCode =
   | "NOT_INSTALLED"
   | "NOT_AUTHENTICATED"
   | "NO_TYPESAFE"
+  | "NO_OPENROUTER"
+  | "TOO_LARGE"
   | "ACTION_NOT_FOUND"
   | "RATE_LIMITED"
   | "VALIDATION"
@@ -25,10 +27,12 @@ const HINTS: Record<OneErrorCode, string> = {
   NOT_INSTALLED: "Install the One CLI: npm install -g @withone/cli (or set ONE_BIN to its path).",
   NOT_AUTHENTICATED: "Sign in to One: run `one init` and follow the prompts.",
   NO_TYPESAFE: "Connect TypeSafe: run `one add typesafe`, then re-run the setup check.",
-  ACTION_NOT_FOUND: "One could not find the TypeSafe System One action. Update the CLI (npm i -g @withone/cli) and retry.",
-  RATE_LIMITED: "TypeSafe is rate-limiting requests. Lower ONECLIP_JEV_CONCURRENCY or wait a minute and retry.",
-  VALIDATION: "TypeSafe rejected the request. This is a OneClip bug: please open an issue with the log.",
-  UPSTREAM: "TypeSafe or One had a temporary error. Retry in a moment.",
+  NO_OPENROUTER: "Optional, for AI edit plans: run `one add open-router`, then re-run the setup check.",
+  TOO_LARGE: "This request is too long to pass to the One CLI. Use a shorter clip length preset.",
+  ACTION_NOT_FOUND: "One could not find the action OneClip needs. Update the CLI (npm i -g @withone/cli) and retry.",
+  RATE_LIMITED: "The service is rate-limiting requests. Lower ONECLIP_JEV_CONCURRENCY or wait a minute and retry.",
+  VALIDATION: "The service rejected the request. This is a OneClip bug: please open an issue with the log.",
+  UPSTREAM: "TypeSafe, OpenRouter or One had a temporary error. Retry in a moment.",
   TIMEOUT: "The One CLI did not answer in time. Check your connection and retry.",
   BAD_RESPONSE: "The One CLI returned output OneClip could not read. Update the CLI and retry.",
   UNKNOWN: "Unexpected One CLI error. Run `pnpm doctor` for details.",
@@ -94,6 +98,10 @@ const FindSchema = z.object({
 });
 
 export const JEV_PATH = "/v1/systemone";
+export const OPENROUTER_CHAT_PATH = "/api/v1/chat/completions";
+
+/** Windows caps a command line at 32,767 characters; stay under it with room for the CLI path. */
+export const MAX_ARGV_CHARS = 30_000;
 
 /** Map anything the CLI or spawn layer throws to a OneError with a user-facing hint. */
 export function normalizeErrors(err: unknown): OneError {
@@ -150,6 +158,7 @@ function errorText(r: ProcResult, json: unknown): string {
 export interface OneClientOptions {
   runner?: OneRunner;
   typesafeKey?: string;
+  openrouterKey?: string;
   timeoutMs?: number;
   retries?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -160,8 +169,8 @@ export class OneClient {
   private readonly timeoutMs: number;
   private readonly retries: number;
   private readonly sleep: (ms: number) => Promise<void>;
-  private action?: JevAction;
-  private connection?: OneConnection;
+  private readonly actions = new Map<string, JevAction>();
+  private readonly connections = new Map<string, OneConnection>();
 
   constructor(private readonly opts: OneClientOptions = {}) {
     this.run = opts.runner ?? makeRunner();
@@ -202,57 +211,62 @@ export class OneClient {
     return parsed.data.connections.map((c) => ({ platform: c.platform, key: c.key, state: c.state ?? "unknown" }));
   }
 
-  /** The TypeSafe connection to use: ONE_TYPESAFE_KEY if set, else the first operational one. */
-  async findTypeSafeConnection(): Promise<OneConnection> {
-    if (this.connection) return this.connection;
-    const all = (await this.listConnections()).filter((c) => c.platform === "typesafe");
-    const wanted = this.opts.typesafeKey ? all.filter((c) => c.key === this.opts.typesafeKey) : all;
+  /** The connection to use for a platform: the pinned key if set, else the first operational one. */
+  private async findConnection(platform: string, pinned: string | undefined, code: OneErrorCode, label: string): Promise<OneConnection> {
+    const cached = this.connections.get(platform);
+    if (cached) return cached;
+    const all = (await this.listConnections()).filter((c) => c.platform === platform);
+    const wanted = pinned ? all.filter((c) => c.key === pinned) : all;
     const pick = wanted.find((c) => c.state === "operational") ?? wanted[0];
-    if (!pick) {
-      throw new OneError(
-        "NO_TYPESAFE",
-        this.opts.typesafeKey ? "ONE_TYPESAFE_KEY does not match any TypeSafe connection" : "No TypeSafe connection in One",
-      );
-    }
-    if (pick.state !== "operational") throw new OneError("NO_TYPESAFE", `TypeSafe connection is ${pick.state}, not operational`);
-    this.connection = pick;
+    if (!pick) throw new OneError(code, pinned ? `The pinned ${label} key does not match any ${label} connection` : `No ${label} connection in One`);
+    if (pick.state !== "operational") throw new OneError(code, `${label} connection is ${pick.state}, not operational`);
+    this.connections.set(platform, pick);
     return pick;
   }
 
-  /** Discovered at runtime through One's action search: OneClip never hardcodes the action ID. */
-  async discoverJevAction(): Promise<JevAction> {
-    if (this.action) return this.action;
-    const { json } = await this.call(
-      [
-        "--agent",
-        "actions",
-        "find",
-        "typesafe",
-        "answer questions using System One",
-        "--task",
-        "score video clip hooks",
-        "--no-knowledge",
-      ],
-      90_000,
-    );
+  /** The TypeSafe connection: ONE_TYPESAFE_KEY if set, else the first operational one. */
+  findTypeSafeConnection(): Promise<OneConnection> {
+    return this.findConnection("typesafe", this.opts.typesafeKey, "NO_TYPESAFE", "TypeSafe");
+  }
+
+  /** The OpenRouter connection: ONE_OPENROUTER_KEY if set, else the first operational one. */
+  findOpenRouterConnection(): Promise<OneConnection> {
+    return this.findConnection("open-router", this.opts.openrouterKey, "NO_OPENROUTER", "OpenRouter");
+  }
+
+  /** Found at runtime through One's action search by its API path: OneClip never hardcodes action IDs. */
+  private async discover(platform: string, intent: string, task: string, path: string, title: RegExp): Promise<JevAction> {
+    const cached = this.actions.get(path);
+    if (cached) return cached;
+    const { json } = await this.call(["--agent", "actions", "find", platform, intent, "--task", task, "--no-knowledge"], 90_000);
     const parsed = FindSchema.safeParse(json);
     if (!parsed.success) throw new OneError("BAD_RESPONSE", "Unexpected `one actions find` output");
     const candidates = parsed.data.answers.flatMap((a) => [...a.selected, ...a.alternatives]);
-    const hit = candidates.find((c) => c.path === JEV_PATH) ?? candidates.find((c) => /system ?one/i.test(c.title ?? ""));
-    if (!hit) throw new OneError("ACTION_NOT_FOUND", "No TypeSafe action for /v1/systemone");
-    this.action = { actionId: hit.actionId, title: hit.title ?? "", path: hit.path ?? JEV_PATH };
-    return this.action;
+    const hit = candidates.find((c) => c.path === path) ?? candidates.find((c) => title.test(c.title ?? ""));
+    if (!hit) throw new OneError("ACTION_NOT_FOUND", `No ${platform} action for ${path}`);
+    const action = { actionId: hit.actionId, title: hit.title ?? "", path: hit.path ?? path };
+    this.actions.set(path, action);
+    return action;
   }
 
-  /** One Jev request through `one actions execute`, retried with backoff on rate limits, 5xx and timeouts. */
-  async executeJevDecision(body: JevRequest): Promise<JevResponse> {
-    const [action, conn] = await Promise.all([this.discoverJevAction(), this.findTypeSafeConnection()]);
-    const args = ["--agent", "actions", "execute", "typesafe", action.actionId, conn.key, "-d", JSON.stringify(body), "--confirm-write"];
+  discoverJevAction(): Promise<JevAction> {
+    return this.discover("typesafe", "answer questions using System One", "score video clip hooks", JEV_PATH, /system ?one/i);
+  }
+
+  discoverOpenRouterChatAction(): Promise<JevAction> {
+    return this.discover("open-router", "create chat completion", "plan a video edit as JSON", OPENROUTER_CHAT_PATH, /^create a chat completion$/i);
+  }
+
+  /** `one actions execute` with backoff on rate limits, 5xx and timeouts. `parse` runs inside the retry loop. */
+  private async execute<T>(platform: string, actionId: string, key: string, body: unknown, parse: (json: unknown) => T): Promise<T> {
+    const data = JSON.stringify(body);
+    if (data.length > MAX_ARGV_CHARS) throw new OneError("TOO_LARGE", `Request body is ${data.length} characters; the limit is ${MAX_ARGV_CHARS}`);
+    const args = ["--agent", "actions", "execute", platform, actionId, key, "-d", data, "--confirm-write"];
     let last: OneError | undefined;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
         const { json } = await this.call(args);
-        return parseJevResponse(json);
+        return parse(json);
       } catch (e) {
         last = normalizeErrors(e);
         if (!last.retryable || attempt === this.retries) throw last;
@@ -261,6 +275,53 @@ export class OneClient {
     }
     throw last ?? new OneError("UNKNOWN", "unreachable");
   }
+
+  /** One Jev request through the user's TypeSafe connection. */
+  async executeJevDecision(body: JevRequest): Promise<JevResponse> {
+    const [action, conn] = await Promise.all([this.discoverJevAction(), this.findTypeSafeConnection()]);
+    return this.execute("typesafe", action.actionId, conn.key, body, parseJevResponse);
+  }
+
+  /** One chat completion through the user's OpenRouter connection. OneClip never sends tools. */
+  async openRouterChat(body: OpenRouterChatRequest): Promise<OpenRouterChatResult> {
+    const [action, conn] = await Promise.all([this.discoverOpenRouterChatAction(), this.findOpenRouterConnection()]);
+    return this.execute("open-router", action.actionId, conn.key, body, parseOpenRouterResponse);
+  }
+}
+
+// ---- OpenRouter wire format (verified through One on 2026-11-24) ----
+
+export interface OpenRouterChatRequest {
+  models: string[];
+  messages: { role: "system" | "user"; content: string }[];
+  response_format?: { type: "json_object" };
+  max_completion_tokens?: number;
+  temperature?: number;
+  provider?: { require_parameters?: boolean };
+}
+
+export interface OpenRouterChatResult {
+  model: string;
+  content: string;
+  cost?: number;
+}
+
+const OpenRouterResponseSchema = z.object({
+  model: z.string(),
+  choices: z.array(z.object({ message: z.object({ content: z.string().nullable() }) })).min(1),
+  usage: z.object({ cost: z.number().optional() }).partial().optional(),
+});
+
+/** One wraps the API reply as {request, response}; accept the bare reply too. OpenRouter errors come back as {error:{code,message}}. */
+export function parseOpenRouterResponse(json: unknown): OpenRouterChatResult {
+  const inner = json && typeof json === "object" && "response" in json ? (json as { response: unknown }).response : json;
+  const err = inner && typeof inner === "object" && "error" in inner ? (inner as { error: { code?: unknown; message?: unknown } }).error : undefined;
+  if (err) throw classify(`OpenRouter ${String(err.code ?? "")} ${String(err.message ?? "")}`);
+  const parsed = OpenRouterResponseSchema.safeParse(inner);
+  if (!parsed.success) throw new OneError("BAD_RESPONSE", `Unexpected OpenRouter response: ${parsed.error.message.slice(0, 300)}`);
+  const content = parsed.data.choices[0]?.message.content;
+  if (!content) throw new OneError("BAD_RESPONSE", "OpenRouter returned an empty message");
+  return { model: parsed.data.model, content, cost: parsed.data.usage?.cost };
 }
 
 // ---- Jev wire format (verified against jev-1.14.0 on 2026-11-23) ----
