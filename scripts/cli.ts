@@ -3,7 +3,7 @@
  *
  *   pnpm clip <video> [--preset standard] [--top 5] [--candidates 24]
  *             [--transcriber auto|faster-whisper|whisper-onnx] [--model small]
- *             [--planner auto|claude-code|opencode|template]
+ *             [--planner auto|openrouter|claude-code|opencode|template]
  *             [--renderer remotion|ffmpeg] [--quality final|preview] [--no-render]
  */
 import { resolve } from "node:path";

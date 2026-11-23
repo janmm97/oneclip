@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gte } from "drizzle-orm";
+import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
-import { jobs } from "../db/schema.ts";
+import { jobs, projects } from "../db/schema.ts";
 
 export type Job = typeof jobs.$inferSelect;
 
@@ -36,9 +36,11 @@ export const MAX_ATTEMPTS = 3;
 /** Jobs left "running" by a crashed or stopped worker go back in the queue, unless they already crashed the worker MAX_ATTEMPTS times. */
 export async function requeueStale(db: Db) {
   const now = Date.now();
-  await db
-    .update(jobs)
-    .set({ status: "failed", error: `Gave up after ${MAX_ATTEMPTS} attempts (the worker stopped each time)`, message: "Failed", updatedAt: now })
-    .where(and(eq(jobs.status, "running"), gte(jobs.attempts, MAX_ATTEMPTS)));
+  const error = `Gave up after ${MAX_ATTEMPTS} attempts (the worker stopped each time)`;
+  const exhausted = and(eq(jobs.status, "running"), gte(jobs.attempts, MAX_ATTEMPTS));
+  const gaveUp = await db.select({ projectId: jobs.projectId }).from(jobs).where(and(exhausted, eq(jobs.kind, "analyze"))).all();
+  await db.update(jobs).set({ status: "failed", error, message: "Failed", updatedAt: now }).where(exhausted);
+  // A project whose analysis gave up must show "failed" (with Retry), not "analyzing" forever.
+  if (gaveUp.length) await db.update(projects).set({ status: "failed", error, updatedAt: now }).where(inArray(projects.id, gaveUp.map((j) => j.projectId)));
   await db.update(jobs).set({ status: "queued", message: "Resumed after restart", updatedAt: now }).where(eq(jobs.status, "running"));
 }

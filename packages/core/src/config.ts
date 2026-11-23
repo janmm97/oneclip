@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+/** Cheap models with JSON output for edit plans, tried in order by OpenRouter. Override with ONECLIP_OPENROUTER_MODELS. */
+export const DEFAULT_OPENROUTER_MODELS = ["deepseek/deepseek-v4-flash", "tencent/hy4-flash", "openai/gpt-6-luna"];
+
 /** All runtime settings come from env vars (see .env.example). None of them is a secret. */
 export function config(env: NodeJS.ProcessEnv = process.env) {
   const dataDir = resolve(env.ONECLIP_DATA_DIR || join(findRoot(), ".oneclip"));
@@ -12,6 +15,8 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     jevModel: env.ONECLIP_JEV_MODEL || "jev-latest",
     jevConcurrency: clampInt(env.ONECLIP_JEV_CONCURRENCY, 3, 1, 8),
     typesafeKey: env.ONE_TYPESAFE_KEY || undefined,
+    openrouterKey: env.ONE_OPENROUTER_KEY || undefined,
+    openrouterModels: list(env.ONECLIP_OPENROUTER_MODELS, 3) ?? DEFAULT_OPENROUTER_MODELS,
     claudeBin: env.CLAUDE_BIN || "claude",
     opencodeBin: env.OPENCODE_BIN || "opencode",
     ffmpeg: env.FFMPEG_BIN || "ffmpeg",
@@ -23,6 +28,12 @@ export type Config = ReturnType<typeof config>;
 
 export function ensureDirs(c: Config) {
   mkdirSync(c.projectsDir, { recursive: true });
+}
+
+/** A comma-separated env list, at most `max` items; undefined when empty. */
+function list(v: string | undefined, max: number) {
+  const items = (v ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, max);
+  return items.length ? items : undefined;
 }
 
 function clampInt(v: string | undefined, def: number, min: number, max: number) {

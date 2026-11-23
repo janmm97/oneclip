@@ -29,7 +29,7 @@ async function version(bin: string, args: string[]) {
  * request (a few hundred tokens on the user's TypeSafe account), so it is opt-in.
  */
 export async function runChecks(cfg: Config, opts: { one?: OneClient; testJev?: boolean; remotion?: { available(): Promise<{ ok: boolean; detail: string }> } } = {}): Promise<Check[]> {
-  const one = opts.one ?? new OneClient({ typesafeKey: cfg.typesafeKey });
+  const one = opts.one ?? new OneClient({ typesafeKey: cfg.typesafeKey, openrouterKey: cfg.openrouterKey });
   const checks: Check[] = [];
   const add = (c: Check) => checks.push(c);
 
@@ -80,8 +80,8 @@ export async function runChecks(cfg: Config, opts: { one?: OneClient; testJev?: 
   const onnx = await new OnnxWhisperProvider().available();
   add({ id: "transcriber", label: "Transcription engine", required: true, ok: fw.ok || onnx.ok, detail: fw.ok ? fw.detail : onnx.ok ? `${onnx.detail} (faster-whisper: ${fw.detail.replace(/^faster-whisper unavailable: /, "").slice(0, 160)})` : fw.detail, fix: fw.ok ? undefined : "Optional: run pnpm run setup (Python 3.10–3.12) for faster-whisper (faster, GPU). The built-in ONNX engine works without it." });
 
-  const planner = await pickPlanner("auto", cfg);
-  add({ id: "planner", label: "Editing agent", required: false, ok: !planner.name.startsWith("template"), detail: planner.name, fix: "Optional: install Claude Code or OpenCode for AI edit plans; otherwise OneClip uses its deterministic template planner" });
+  const planner = await pickPlanner("auto", cfg, one);
+  add({ id: "planner", label: "Editing agent", required: false, ok: !planner.name.startsWith("template"), detail: planner.name, fix: "Optional: run `one add open-router` for AI edit plans with cheap models (or install Claude Code or OpenCode); otherwise OneClip uses its deterministic template planner" });
 
   if (opts.remotion) {
     const r = await opts.remotion.available();
