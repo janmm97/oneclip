@@ -11,7 +11,7 @@ We aim to reply within 7 days and to fix confirmed issues in the next release.
 
 ## Scope
 
-OneClip runs on your own computer. It reads untrusted input (video files, transcripts, YouTube metadata, and the JSON an editing agent returns) and starts local processes (the One CLI, Python/faster-whisper, FFmpeg, Remotion, Claude Code or OpenCode). We especially want to hear about:
+OneClip runs on your own computer. It reads untrusted input (video files, transcripts, YouTube metadata, and the JSON an editing agent returns) and starts local processes (the One CLI, Python/faster-whisper, FFmpeg, Remotion, Claude Code or OpenCode), and sends clip text to OpenRouter through One. We especially want to hear about:
 
 - transcript text or agent output that gets OneClip to run a command, write outside its data folder, or use an operation, template or preset that isn't on the allow-list;
 - argument or path injection into FFmpeg, the One CLI, Python or an agent;
