@@ -117,6 +117,8 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
   it("rejects unauthorised or unsupported input", async () => {
     await expect(createProject(deps, { sourcePath: video, authorized: false })).rejects.toThrow(/authorised/);
     await expect(createProject(deps, { sourcePath: join(dir, "x.txt"), authorized: true })).rejects.toThrow(/Supported/);
+    await expect(createProject(deps, { sourcePath: "//attacker/share/x.mp4", authorized: true })).rejects.toThrow(/network share/);
+    await expect(createProject(deps, { sourcePath: "\\\\attacker\\share\\x.mp4", authorized: true })).rejects.toThrow(/network share|full path/);
   });
 
   let projectId = "";

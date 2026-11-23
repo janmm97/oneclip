@@ -64,6 +64,8 @@ export function runProcess(
       if (timedOut) reject(new ProcError(`${cmd} did not finish within ${Math.round(opts.timeoutMs / 1000)}s`, "timeout", result));
       else resolve(result);
     });
+    // A child that exits before reading its input raises EPIPE on stdin; without a listener that crashes the whole process.
+    child.stdin.on("error", () => {});
     if (opts.input !== undefined) child.stdin.end(opts.input);
     else child.stdin.end();
   });

@@ -1,6 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import type { ClipCandidate } from "../discovery/segment.ts";
 import type { HookEvaluation } from "../jev/rank.ts";
+import { DEFAULT_OPENROUTER_MODELS } from "../config.ts";
+import { OneClient } from "../one/client.ts";
 import { redact, runProcess } from "../proc.ts";
 import type { Word } from "../transcription/types.ts";
 import { CAPTION_PRESETS, CROP_MODES, LAYOUTS, PlanDraftSchema, TEMPLATES, TRANSITION_PRESETS, type PlanDraft } from "./schema.ts";
@@ -110,12 +115,57 @@ export function extractJsonObject(text: string): unknown {
 }
 
 export function parseDraft(raw: unknown, source: string): PlanDraft {
-  const r = PlanDraftSchema.safeParse(raw);
+  // Free-text display fields: trim over-long ones (cheap models overshoot) instead of discarding the whole plan.
+  const d = raw && typeof raw === "object" ? { ...(raw as Record<string, unknown>) } : raw;
+  if (d && typeof d === "object") {
+    const o = d as Record<string, unknown>;
+    if (typeof o.title === "string") o.title = o.title.slice(0, 80);
+    if (typeof o.reasoning === "string") o.reasoning = o.reasoning.slice(0, 600);
+  }
+  const r = PlanDraftSchema.safeParse(d);
   if (!r.success) throw new Error(`${source} returned an invalid plan: ${r.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   return r.data;
 }
 
 const DRAFT_JSON_SCHEMA = JSON.stringify(z.toJSONSchema(PlanDraftSchema));
+
+/**
+ * OpenRouter through the user's One connection (`one actions execute open-router …`). A plain chat completion:
+ * no tools are sent, so an instruction hidden in the transcript has nothing it can run.
+ */
+export class OpenRouterPlanner implements EditingPlanner {
+  readonly name: string;
+  constructor(
+    private readonly one: OneClient,
+    private readonly models: string[] = DEFAULT_OPENROUTER_MODELS,
+  ) {
+    this.name = `OpenRouter via One (${models[0]})`;
+  }
+
+  async available() {
+    try {
+      await this.one.findOpenRouterConnection();
+      return { ok: true, detail: this.name };
+    } catch (e) {
+      return { ok: false, detail: (e as Error).message };
+    }
+  }
+
+  async plan(input: PlanInput): Promise<PlanDraft> {
+    const r = await this.one.openRouterChat({
+      models: this.models,
+      messages: [
+        { role: "system", content: `${SYSTEM}\n\nJSON schema:\n${DRAFT_JSON_SCHEMA}` },
+        { role: "user", content: JSON.stringify(agentPayload(input)) },
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 2000,
+      temperature: 0.3,
+      provider: { require_parameters: true },
+    });
+    return parseDraft(extractJsonObject(r.content), `OpenRouter (${r.model})`);
+  }
+}
 
 /** Claude Code in print mode: no tools, no MCP servers, no session saved, JSON-schema output. */
 export class ClaudeCodePlanner implements EditingPlanner {
@@ -150,11 +200,17 @@ export class ClaudeCodePlanner implements EditingPlanner {
       SYSTEM,
     ];
     if (this.opts.model) args.push("--model", this.opts.model);
-    const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: JSON.stringify(agentPayload(input)) });
-    if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
-    const out = extractJsonObject(r.stdout) as { structured_output?: unknown; result?: string; is_error?: boolean } | undefined;
-    if (!out || out.is_error) throw new Error(`Claude Code error: ${redact(String(out?.result ?? r.stdout).slice(0, 500))}`);
-    return parseDraft(out.structured_output ?? extractJsonObject(out.result ?? ""), "Claude Code");
+    // Empty working folder: the repo's own Claude settings, hooks and CLAUDE.md must not steer a planner that reads untrusted speech.
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-claude-"));
+    try {
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: JSON.stringify(agentPayload(input)), cwd });
+      if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
+      const out = extractJsonObject(r.stdout) as { structured_output?: unknown; result?: string; is_error?: boolean } | undefined;
+      if (!out || out.is_error) throw new Error(`Claude Code error: ${redact(String(out?.result ?? r.stdout).slice(0, 500))}`);
+      return parseDraft(out.structured_output ?? extractJsonObject(out.result ?? ""), "Claude Code");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 }
 
@@ -176,24 +232,56 @@ export class OpenCodePlanner implements EditingPlanner {
   }
 
   async plan(input: PlanInput): Promise<PlanDraft> {
-    const args = ["run"];
+    const args = ["run", "--agent", OPENCODE_AGENT];
     if (this.opts.model) args.push("--model", this.opts.model);
     const prompt = `${SYSTEM}\n\nJSON schema:\n${DRAFT_JSON_SCHEMA}\n\nCandidate:\n${JSON.stringify(agentPayload(input))}\n\nReply with the JSON object only.`;
-    const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: prompt });
-    if (r.code !== 0) throw new Error(`OpenCode exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
-    return parseDraft(extractJsonObject(r.stdout), "OpenCode");
+    // The transcript is untrusted speech: run with every tool denied, in an empty folder, so an injected instruction can't act.
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-opencode-"));
+    try {
+      const env = { ...process.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(OPENCODE_LOCKDOWN) };
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: prompt, env, cwd });
+      if (r.code !== 0) throw new Error(`OpenCode exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
+      return parseDraft(extractJsonObject(r.stdout), "OpenCode");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 }
 
-export type PlannerChoice = "auto" | "claude-code" | "opencode" | "template";
+const DENY_PERMISSIONS = { edit: "deny", bash: "deny", webfetch: "deny", external_directory: "deny" } as const;
+const NO_TOOLS = Object.fromEntries(
+  ["*", "bash", "edit", "write", "patch", "read", "grep", "glob", "list", "webfetch", "websearch", "codesearch", "task", "todowrite", "todoread", "skill"].map((t) => [t, false]),
+);
+export const OPENCODE_AGENT = "oneclip-planner";
 
-/** The chosen planner, or the first available agent for "auto", falling back to the template. */
-export async function pickPlanner(choice: PlannerChoice, bins: { claudeBin: string; opencodeBin: string }): Promise<EditingPlanner> {
-  const claude = new ClaudeCodePlanner(bins.claudeBin);
-  const opencode = new OpenCodePlanner(bins.opencodeBin);
+/**
+ * OpenCode config that denies every permission and turns every tool off: the planner only needs to write text.
+ * Set globally AND on a dedicated agent we run with `--agent`, so a user's own agent-level config (merged by OpenCode)
+ * can't re-enable a tool for the agent that reads untrusted speech.
+ */
+export const OPENCODE_LOCKDOWN = {
+  permission: DENY_PERMISSIONS,
+  tools: NO_TOOLS,
+  agent: {
+    [OPENCODE_AGENT]: { description: "OneClip edit planner: text only, no tools", mode: "primary", permission: DENY_PERMISSIONS, tools: NO_TOOLS },
+  },
+} as const;
+
+export type PlannerChoice = "auto" | "openrouter" | "claude-code" | "opencode" | "template";
+
+/** The chosen planner, or for "auto" OpenRouter via One, then a local agent, then the template. */
+export async function pickPlanner(
+  choice: PlannerChoice,
+  cfg: { claudeBin: string; opencodeBin: string; openrouterModels: string[]; openrouterKey?: string },
+  one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey }),
+): Promise<EditingPlanner> {
+  const openrouter = new OpenRouterPlanner(one, cfg.openrouterModels);
+  const claude = new ClaudeCodePlanner(cfg.claudeBin);
+  const opencode = new OpenCodePlanner(cfg.opencodeBin);
+  if (choice === "openrouter") return openrouter;
   if (choice === "claude-code") return claude;
   if (choice === "opencode") return opencode;
   if (choice === "template") return new TemplatePlanner();
-  for (const p of [claude, opencode]) if ((await p.available()).ok) return p;
+  for (const p of [openrouter, claude, opencode]) if ((await p.available()).ok) return p;
   return new TemplatePlanner();
 }

@@ -22,6 +22,7 @@ export async function GET(req: Request, { params }: Ctx) {
   const zip = new ZipArchive({ store: true });
   const out = new PassThrough();
   zip.pipe(out);
+  zip.on("error", (e) => out.destroy(e));
   const seen = new Set<string>();
   for (const r of rows) {
     const name = basename(r.path);
