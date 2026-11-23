@@ -39,4 +39,17 @@ describe("requeueStale", () => {
     }
     expect(await claimNext(db)).toBeUndefined();
   });
+
+  it("marks the project failed when its analysis gives up, so the page doesn't spin forever", async () => {
+    const db = openDb(":memory:");
+    await db.insert(schema.projects).values({ id: "p", title: "t", sourcePath: "/x.mp4", settings: {}, status: "running" });
+    await enqueue(db, { projectId: "p", kind: "analyze" });
+    for (let i = 1; i <= 3; i++) {
+      await claimNext(db);
+      await requeueStale(db);
+    }
+    const project = await db.select().from(schema.projects).where(eq(schema.projects.id, "p")).get();
+    expect(project?.status).toBe("failed");
+    expect(project?.error).toMatch(/Gave up after 3 attempts/);
+  });
 });
