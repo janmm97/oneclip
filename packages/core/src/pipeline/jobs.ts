@@ -26,6 +26,11 @@ export async function updateJob(db: Db, id: string, patch: Partial<Pick<Job, "st
   await db.update(jobs).set({ ...patch, updatedAt: Date.now() }).where(eq(jobs.id, id));
 }
 
+/** Fire-and-forget progress write: a failed progress tick (e.g. a busy DB) must not crash the worker. */
+export function progressUpdate(db: Db, id: string, patch: { progress: number; message: string }): void {
+  updateJob(db, id, patch).catch(() => {});
+}
+
 export const MAX_ATTEMPTS = 3;
 
 /** Jobs left "running" by a crashed or stopped worker go back in the queue, unless they already crashed the worker MAX_ATTEMPTS times. */

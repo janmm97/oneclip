@@ -169,6 +169,7 @@ Only process videos you own or are authorised to edit.
 | "One CLI not found" | `npm i -g @withone/cli`, or set `ONE_BIN` |
 | "TypeSafe not connected" | `one add typesafe`; if you have several, set `ONE_TYPESAFE_KEY` |
 | faster-whisper won't install or crashes | It needs Python 3.10–3.12. OneClip falls back to ONNX Whisper automatically. On Windows 11 with **Smart App Control** on, unsigned native Python wheels can be blocked; the ONNX fallback still works |
+| ONNX transcripts are weaker | The ONNX fallback is a lighter path: it uses Whisper small for every model setting (medium and large-v3 included), transcribes in 30 s windows, and assumes English when the language is auto. Set the language explicitly for other languages, or install faster-whisper for best results |
 | FFmpeg captions missing | Your FFmpeg has no libass; install a full build, or use the Remotion renderer |
 | First Remotion render is slow | It downloads Chrome Headless Shell once (~131 MB) |
 | "No complete thoughts fit this clip length" | Pick a shorter preset; very short or music-only videos have few complete sentences |

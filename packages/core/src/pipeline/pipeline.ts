@@ -17,7 +17,7 @@ import { redact } from "../proc.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import type { Transcript, TranscriptionProvider } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
-import { enqueue, updateJob, type Job } from "./jobs.ts";
+import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
 
 export interface PipelineDeps {
@@ -124,7 +124,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
       onProgress: (f) => {
         if (f - last >= 0.02 || f === 1) {
           last = f;
-          void updateJob(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%` });
+          progressUpdate(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%` });
         }
       },
     });
@@ -142,7 +142,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev`);
   const evaluator = deps.evaluator(dbJevCache(db));
   const evaluations = await evaluator.evaluate(candidates, (done, total) => {
-    void updateJob(db, job.id, { progress: 0.55 + (done / total) * 0.3, message: `Ranking hooks with Jev: ${done}/${total}` });
+    progressUpdate(db, job.id, { progress: 0.55 + (done / total) * 0.3, message: `Ranking hooks with Jev: ${done}/${total}` });
   });
   const byId = new Map(evaluations.map((e) => [e.candidateId, e]));
   const ranked = selectTop(
@@ -228,7 +228,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
       outPath,
       workDir,
       quality,
-      onProgress: (f) => void updateJob(db, job.id, { progress: Math.min(0.97, f), message: `Rendering ${quality} with ${renderer.name}: ${Math.round(f * 100)}%` }),
+      onProgress: (f) => progressUpdate(db, job.id, { progress: Math.min(0.97, f), message: `Rendering ${quality} with ${renderer.name}: ${Math.round(f * 100)}%` }),
     };
     try {
       await renderer.render(rj);
