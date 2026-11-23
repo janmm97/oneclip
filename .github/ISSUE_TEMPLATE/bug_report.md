@@ -20,7 +20,7 @@ labels: bug
 - FFmpeg version (`ffmpeg -version`, first line):
 - Python and faster-whisper version, Whisper model size:
 - GPU / VRAM (or CPU only):
-- Editing agent (Claude Code, OpenCode, template fallback):
+- Editing agent (OpenRouter via One, Claude Code, OpenCode, template fallback):
 
 **Logs**
 The output of `pnpm doctor` and the job error shown in the app. Remove transcripts, connection keys and anything private first.

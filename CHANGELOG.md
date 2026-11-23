@@ -9,6 +9,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Core pipeline: FFprobe/FFmpeg ingestion, local transcription (faster-whisper with an ONNX Whisper fallback), sentence-aligned candidate clips with four length presets.
 - Jev hook ranking through the One CLI: six weighted scores, a context-integrity gate, hook types, penalties, de-duplication, top N, SQLite cache.
 - Evaluation harness (`pnpm eval:hooks`) with synthetic datasets and local good/average/bad feedback.
+- OpenRouter edit planner through One (`one actions execute open-router`), on cheap models with JSON output and fallbacks; the default for `auto`.
 - Edit planners (Claude Code, OpenCode, deterministic template) with Zod-validated plans and automatic fallback.
 - Renderers: Remotion (three templates, word-by-word captions, 1080×1920 at 30 fps) and FFmpeg (ASS captions), with FFprobe output checks and an FFmpeg fallback.
 - Local web app: Setup, Video input, Processing, Hook results (live Remotion preview), Exports (per-clip download and zip).
