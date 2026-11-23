@@ -96,7 +96,7 @@ export function NewProject() {
         <Field label="Renderer">
           <Select options={RENDERERS} value={s.renderer} onChange={(e) => setS({ ...s, renderer: e.target.value })} />
         </Field>
-        <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use; pick Template to keep them on this computer.">
+        <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
       </div>
