@@ -153,11 +153,17 @@ export class ClaudeCodePlanner implements EditingPlanner {
       SYSTEM,
     ];
     if (this.opts.model) args.push("--model", this.opts.model);
-    const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: JSON.stringify(agentPayload(input)) });
-    if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
-    const out = extractJsonObject(r.stdout) as { structured_output?: unknown; result?: string; is_error?: boolean } | undefined;
-    if (!out || out.is_error) throw new Error(`Claude Code error: ${redact(String(out?.result ?? r.stdout).slice(0, 500))}`);
-    return parseDraft(out.structured_output ?? extractJsonObject(out.result ?? ""), "Claude Code");
+    // Empty working folder: the repo's own Claude settings, hooks and CLAUDE.md must not steer a planner that reads untrusted speech.
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-claude-"));
+    try {
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: JSON.stringify(agentPayload(input)), cwd });
+      if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
+      const out = extractJsonObject(r.stdout) as { structured_output?: unknown; result?: string; is_error?: boolean } | undefined;
+      if (!out || out.is_error) throw new Error(`Claude Code error: ${redact(String(out?.result ?? r.stdout).slice(0, 500))}`);
+      return parseDraft(out.structured_output ?? extractJsonObject(out.result ?? ""), "Claude Code");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 }
 

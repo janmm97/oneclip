@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { jobs } from "../db/schema.ts";
 
@@ -26,7 +26,14 @@ export async function updateJob(db: Db, id: string, patch: Partial<Pick<Job, "st
   await db.update(jobs).set({ ...patch, updatedAt: Date.now() }).where(eq(jobs.id, id));
 }
 
-/** Jobs left "running" by a crashed or stopped worker go back in the queue. */
+export const MAX_ATTEMPTS = 3;
+
+/** Jobs left "running" by a crashed or stopped worker go back in the queue, unless they already crashed the worker MAX_ATTEMPTS times. */
 export async function requeueStale(db: Db) {
-  await db.update(jobs).set({ status: "queued", message: "Resumed after restart", updatedAt: Date.now() }).where(eq(jobs.status, "running"));
+  const now = Date.now();
+  await db
+    .update(jobs)
+    .set({ status: "failed", error: `Gave up after ${MAX_ATTEMPTS} attempts (the worker stopped each time)`, message: "Failed", updatedAt: now })
+    .where(and(eq(jobs.status, "running"), gte(jobs.attempts, MAX_ATTEMPTS)));
+  await db.update(jobs).set({ status: "queued", message: "Resumed after restart", updatedAt: now }).where(eq(jobs.status, "running"));
 }
