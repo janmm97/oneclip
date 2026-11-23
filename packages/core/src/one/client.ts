@@ -260,7 +260,10 @@ export class OneClient {
   /** `one actions execute` with backoff on rate limits, 5xx and timeouts. `parse` runs inside the retry loop. */
   private async execute<T>(platform: string, actionId: string, key: string, body: unknown, parse: (json: unknown) => T): Promise<T> {
     const data = JSON.stringify(body);
-    if (data.length > MAX_ARGV_CHARS) throw new OneError("TOO_LARGE", `Request body is ${data.length} characters; the limit is ${MAX_ARGV_CHARS}`);
+    // Windows quotes each argv entry: every `"` becomes `\"` (and backslashes before it double), so JSON with
+    // nested quotes is up to ~4x longer on the real command line than in memory. Measure that, not data.length.
+    const onArgv = data.replace(/(\\*)"/g, '$1$1\\"').length;
+    if (onArgv > MAX_ARGV_CHARS) throw new OneError("TOO_LARGE", `Request body is ${onArgv} characters on the command line; the limit is ${MAX_ARGV_CHARS}`);
     const args = ["--agent", "actions", "execute", platform, actionId, key, "-d", data, "--confirm-write"];
     let last: OneError | undefined;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
@@ -312,11 +315,22 @@ const OpenRouterResponseSchema = z.object({
   usage: z.object({ cost: z.number().optional() }).partial().optional(),
 });
 
+/** Trust OpenRouter's numeric code over keyword-matching the message (a 400 saying "500 tokens" is not a 5xx). */
+export function classifyOpenRouterError(code: unknown, text: string): OneError {
+  const n = Number(code);
+  if (n === 429) return new OneError("RATE_LIMITED", text);
+  if (n === 408) return new OneError("TIMEOUT", text);
+  if (n >= 500 && n <= 599) return new OneError("UPSTREAM", text);
+  if (n === 401 || n === 403) return new OneError("NOT_AUTHENTICATED", text);
+  if (Number.isFinite(n) && n >= 400) return new OneError("UNKNOWN", text); // 400/402/404: not retryable, message says why
+  return classify(text);
+}
+
 /** One wraps the API reply as {request, response}; accept the bare reply too. OpenRouter errors come back as {error:{code,message}}. */
 export function parseOpenRouterResponse(json: unknown): OpenRouterChatResult {
   const inner = json && typeof json === "object" && "response" in json ? (json as { response: unknown }).response : json;
   const err = inner && typeof inner === "object" && "error" in inner ? (inner as { error: { code?: unknown; message?: unknown } }).error : undefined;
-  if (err) throw classify(`OpenRouter ${String(err.code ?? "")} ${String(err.message ?? "")}`);
+  if (err) throw classifyOpenRouterError(err.code, `OpenRouter ${String(err.code ?? "")} ${String(err.message ?? "")}`);
   const parsed = OpenRouterResponseSchema.safeParse(inner);
   if (!parsed.success) throw new OneError("BAD_RESPONSE", `Unexpected OpenRouter response: ${parsed.error.message.slice(0, 300)}`);
   const content = parsed.data.choices[0]?.message.content;
