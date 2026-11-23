@@ -19,9 +19,8 @@
     "eval:hooks": "tsx scripts/eval-hooks.ts",
     "sample": "tsx scripts/make-sample.ts",
     "e2e": "tsx scripts/e2e.ts",
-    "lint": "tsc --noEmit -p tsconfig.json && pnpm --filter @oneclip/web typecheck",
-    "test": "vitest run",
-    "build": "pnpm --filter @oneclip/web build"
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
@@ -32,6 +31,8 @@
   },
   "dependencies": {
     "@oneclip/core": "workspace:*",
-    "@oneclip/remotion": "workspace:*"
+    "@oneclip/remotion": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
   }
 }

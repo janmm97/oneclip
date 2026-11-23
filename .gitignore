@@ -42,3 +42,4 @@ secrets.*
 Thumbs.db
 .vscode/
 .idea/
+next-env.d.ts
