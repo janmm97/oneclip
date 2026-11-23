@@ -128,7 +128,7 @@ The planner turns a ranked clip into an `EditPlan`: template, layout, crop, capt
 | Planner | How |
 |---|---|
 | `claude-code` | Runs `claude -p` with a JSON schema for the answer, all tools turned off, no MCP servers and no saved session |
-| `opencode` | Runs `opencode run` with the clip on stdin and reads the first JSON object from the reply |
+| `opencode` | Runs `opencode run` with the clip on stdin, every tool and permission denied and an empty working folder, and reads the first JSON object from the reply |
 | `template` | Deterministic rules, no AI, always available |
 | `auto` (default) | Claude Code, then OpenCode, then template |
 

@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import type { ClipCandidate } from "../discovery/segment.ts";
 import type { HookEvaluation } from "../jev/rank.ts";
@@ -179,11 +182,26 @@ export class OpenCodePlanner implements EditingPlanner {
     const args = ["run"];
     if (this.opts.model) args.push("--model", this.opts.model);
     const prompt = `${SYSTEM}\n\nJSON schema:\n${DRAFT_JSON_SCHEMA}\n\nCandidate:\n${JSON.stringify(agentPayload(input))}\n\nReply with the JSON object only.`;
-    const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: prompt });
-    if (r.code !== 0) throw new Error(`OpenCode exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
-    return parseDraft(extractJsonObject(r.stdout), "OpenCode");
+    // The transcript is untrusted speech: run with every tool denied, in an empty folder, so an injected instruction can't act.
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-opencode-"));
+    try {
+      const env = { ...process.env, OPENCODE_CONFIG_CONTENT: JSON.stringify(OPENCODE_LOCKDOWN) };
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 180_000, input: prompt, env, cwd });
+      if (r.code !== 0) throw new Error(`OpenCode exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
+      return parseDraft(extractJsonObject(r.stdout), "OpenCode");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
   }
 }
+
+/** OpenCode config that denies every permission and turns every tool off: the planner only needs to write text. */
+export const OPENCODE_LOCKDOWN = {
+  permission: { edit: "deny", bash: "deny", webfetch: "deny", external_directory: "deny" },
+  tools: Object.fromEntries(
+    ["*", "bash", "edit", "write", "patch", "read", "grep", "glob", "list", "webfetch", "websearch", "codesearch", "task", "todowrite", "todoread", "skill"].map((t) => [t, false]),
+  ),
+} as const;
 
 export type PlannerChoice = "auto" | "claude-code" | "opencode" | "template";
 

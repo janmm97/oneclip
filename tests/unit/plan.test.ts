@@ -5,6 +5,7 @@ import {
   extractJsonObject,
   findCandidates,
   normalizeRanges,
+  OPENCODE_LOCKDOWN,
   parseDraft,
   type PlanDraft,
   silenceKeepRanges,
@@ -165,5 +166,10 @@ describe("agent output parsing", () => {
     expect(() => parseDraft(bad, "Agent")).toThrow(/Agent returned an invalid plan: template/);
     expect(() => parseDraft({ ...bad, template: "podcast-short", zoomIntensity: 5 }, "Agent")).toThrow(/zoomIntensity/);
     expect(parseDraft({ ...bad, template: "podcast-short" }, "Agent").template).toBe("podcast-short");
+  });
+
+  it("runs OpenCode with no tools, so injected speech can't act", () => {
+    expect(OPENCODE_LOCKDOWN.permission).toMatchObject({ bash: "deny", edit: "deny", webfetch: "deny" });
+    expect(OPENCODE_LOCKDOWN.tools).toMatchObject({ "*": false, bash: false, edit: false, write: false, webfetch: false });
   });
 });
