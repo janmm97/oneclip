@@ -1,0 +1,22 @@
+{
+  "name": "@oneclip/remotion",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./compositions": "./src/compositions/index.tsx"
+  },
+  "dependencies": {
+    "@oneclip/core": "workspace:*",
+    "@remotion/bundler": "4.0.546",
+    "@remotion/renderer": "4.0.546",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.546"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0"
+  }
+}

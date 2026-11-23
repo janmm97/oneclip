@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
+  - esbuild
+  - sharp
+  - "@remotion/compositor-win32-x64-msvc"
+  - "@remotion/compositor-linux-x64-gnu"
+  - "@remotion/compositor-darwin-arm64"

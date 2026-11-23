@@ -1,0 +1,44 @@
+# deps and builds
+node_modules/
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+.remotion/
+__pycache__/
+*.pyc
+.venv/
+
+# local data: projects, media, renders, database, model cache
+.oneclip/
+data/
+renders/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# media (the one redistributable sample is allowed below)
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.wav
+*.mp3
+*.m4a
+!examples/sample/oneclip-sample.mp4
+
+# secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
