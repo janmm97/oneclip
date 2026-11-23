@@ -2,7 +2,7 @@
 
 OneClip is an open-source AI video clipper powered by [One](https://withone.ai), TypeSafe Jev and AI editing agents. It finds the strongest hooks in a long video and turns them into short vertical clips, on your own computer.
 
-- **Local first.** Transcription, cutting, captions and rendering all run on your machine. The only thing that leaves it is clip text sent to Jev for scoring.
+- **Local first.** Transcription, cutting, captions and rendering all run on your machine. The only thing that leaves it is clip text: sent to Jev for scoring and, by default, to an AI planner (OpenRouter via One, Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except Jev ([Privacy](#privacy)).
 - **Ranked by Jev, not by vibes.** Every candidate clip gets six scored dimensions, a context check and a hook type from TypeSafe's Jev, and the ranking explains itself.
 - **Real files out.** You get playable 1080×1920, 30 fps MP4s with word-by-word captions, ready to post.
 
@@ -61,10 +61,10 @@ cd oneclip
 corepack enable
 pnpm install
 
-# One account + TypeSafe (once)
+# One account + TypeSafe account (once). Jev scoring uses TypeSafe tokens, ~34k per video (see Costs)
 npm i -g @withone/cli
 one init          # sign up or sign in at https://withone.ai
-one add typesafe  # connect your TypeSafe account
+one add typesafe  # connect your TypeSafe account (create one when it asks you to sign in)
 one add open-router  # optional: AI edit plans with cheap models
 
 pnpm run setup    # checks One → TypeSafe → Jev, installs faster-whisper if Python is there, downloads the model

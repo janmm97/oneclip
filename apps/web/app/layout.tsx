@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/setup" className="text-muted hover:text-fg">
               Setup
             </Link>
-            <span className="ml-auto hidden text-xs text-muted sm:block">Runs on this machine · nothing uploaded but clip text to Jev</span>
+            <span className="ml-auto hidden text-xs text-muted sm:block">Runs on this machine · only clip text leaves it (Jev, AI planner)</span>
           </nav>
         </header>
         <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
