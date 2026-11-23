@@ -5,6 +5,7 @@ import {
   extractJsonObject,
   findCandidates,
   normalizeRanges,
+  OPENCODE_AGENT,
   OPENCODE_LOCKDOWN,
   parseDraft,
   type PlanDraft,
@@ -171,5 +172,9 @@ describe("agent output parsing", () => {
   it("runs OpenCode with no tools, so injected speech can't act", () => {
     expect(OPENCODE_LOCKDOWN.permission).toMatchObject({ bash: "deny", edit: "deny", webfetch: "deny" });
     expect(OPENCODE_LOCKDOWN.tools).toMatchObject({ "*": false, bash: false, edit: false, write: false, webfetch: false });
+    // The dedicated agent is locked too, so user agent-level config can't re-enable tools for it.
+    const agent = OPENCODE_LOCKDOWN.agent[OPENCODE_AGENT];
+    expect(agent.permission).toMatchObject({ bash: "deny", edit: "deny", webfetch: "deny" });
+    expect(agent.tools).toMatchObject({ "*": false, bash: false, edit: false, write: false, webfetch: false });
   });
 });

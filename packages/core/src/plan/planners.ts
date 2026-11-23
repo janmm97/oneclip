@@ -185,7 +185,7 @@ export class OpenCodePlanner implements EditingPlanner {
   }
 
   async plan(input: PlanInput): Promise<PlanDraft> {
-    const args = ["run"];
+    const args = ["run", "--agent", OPENCODE_AGENT];
     if (this.opts.model) args.push("--model", this.opts.model);
     const prompt = `${SYSTEM}\n\nJSON schema:\n${DRAFT_JSON_SCHEMA}\n\nCandidate:\n${JSON.stringify(agentPayload(input))}\n\nReply with the JSON object only.`;
     // The transcript is untrusted speech: run with every tool denied, in an empty folder, so an injected instruction can't act.
@@ -201,12 +201,23 @@ export class OpenCodePlanner implements EditingPlanner {
   }
 }
 
-/** OpenCode config that denies every permission and turns every tool off: the planner only needs to write text. */
+const DENY_PERMISSIONS = { edit: "deny", bash: "deny", webfetch: "deny", external_directory: "deny" } as const;
+const NO_TOOLS = Object.fromEntries(
+  ["*", "bash", "edit", "write", "patch", "read", "grep", "glob", "list", "webfetch", "websearch", "codesearch", "task", "todowrite", "todoread", "skill"].map((t) => [t, false]),
+);
+export const OPENCODE_AGENT = "oneclip-planner";
+
+/**
+ * OpenCode config that denies every permission and turns every tool off: the planner only needs to write text.
+ * Set globally AND on a dedicated agent we run with `--agent`, so a user's own agent-level config (merged by OpenCode)
+ * can't re-enable a tool for the agent that reads untrusted speech.
+ */
 export const OPENCODE_LOCKDOWN = {
-  permission: { edit: "deny", bash: "deny", webfetch: "deny", external_directory: "deny" },
-  tools: Object.fromEntries(
-    ["*", "bash", "edit", "write", "patch", "read", "grep", "glob", "list", "webfetch", "websearch", "codesearch", "task", "todowrite", "todoread", "skill"].map((t) => [t, false]),
-  ),
+  permission: DENY_PERMISSIONS,
+  tools: NO_TOOLS,
+  agent: {
+    [OPENCODE_AGENT]: { description: "OneClip edit planner: text only, no tools", mode: "primary", permission: DENY_PERMISSIONS, tools: NO_TOOLS },
+  },
 } as const;
 
 export type PlannerChoice = "auto" | "claude-code" | "opencode" | "template";

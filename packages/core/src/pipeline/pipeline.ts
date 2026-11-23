@@ -57,6 +57,8 @@ export async function createProject(deps: Pick<PipelineDeps, "db" | "cfg">, inpu
   if (!input.authorized) throw new Error("Confirm you own this video or are authorised to use it.");
   const p = input.sourcePath.trim().replace(/^"(.*)"$/, "$1");
   if (!isAbsolute(p)) throw new Error("Give the full path to the video file.");
+  // Network shares (\\host\share, //host/share) would make the machine authenticate to that host: local files only.
+  if (/^[\\/]{2}/.test(p)) throw new Error("Use a file on this computer, not a network share.");
   if (!ALLOWED_EXTENSIONS.includes(extname(p).toLowerCase() as (typeof ALLOWED_EXTENSIONS)[number]))
     throw new Error(`Supported files: ${ALLOWED_EXTENSIONS.join(", ")}`);
   if (!existsSync(p) || !statSync(p).isFile()) throw new Error("That file doesn't exist.");
