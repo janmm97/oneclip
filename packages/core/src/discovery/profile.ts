@@ -55,6 +55,8 @@ export interface ContentProfile {
   main?: Span;
   /** Music: stretches whose lyric comes back later (the chorus or hook). */
   choruses: Span[];
+  /** Music: talking between parts of the song (a mid-video skit, banter between songs). */
+  breaks?: Span[];
 }
 
 /** Title, tags and categories that name a kind of content. Each match adds points. */
@@ -102,32 +104,81 @@ const pct = (xs: number[], q: number) => {
 };
 
 /**
- * Where a song plays: seconds that are loud for this source and dense (a
- * mixed track barely moves within a second; speech and ambience do), smoothed
- * so a breakdown or a quiet bar doesn't split it. The span runs from the first
- * long run of song to the last; anything before or after is intro or outro.
+ * Seconds that sound like music. With `floor`: not silent, not far below the
+ * source's usual level, and full between notes (dialogue sinks into the gaps
+ * between words). Without it (older measurements): loud for the source and
+ * steady inside the second.
  */
-export function findSongSpan(s: MediaSignals, minRun = 15): Span | undefined {
-  const n = s.loudness.length;
-  if (!s.variation || n < minRun) return undefined;
+function musicalSeconds(s: MediaSignals): boolean[] {
   const ref = pct(s.loudness, 0.8);
-  const raw = s.loudness.map((db, t) => db >= ref - 8 && db > -40 && (s.variation?.[t] ?? 9) <= 2.5);
+  const { floor, variation } = s;
+  if (floor?.length) return s.loudness.map((db, t) => db > -45 && db >= ref - 18 && (floor[t] ?? -99) >= -8);
+  return s.loudness.map((db, t) => db >= ref - 8 && db > -40 && (variation?.[t] ?? 9) <= 2.5);
+}
+
+/**
+ * The stretches where music plays: musical seconds smoothed over ±4 s (so a
+ * quiet bar doesn't split them), gaps of 8 s or less closed, and only runs of
+ * at least `minRun` seconds kept.
+ */
+export function findSongParts(s: MediaSignals, minRun = 15): Span[] {
+  const n = s.loudness.length;
+  if ((!s.variation && !s.floor) || n < minRun) return [];
+  const raw = musicalSeconds(s);
   const on = raw.map((_, t) => {
     let c = 0;
     let k = 0;
     for (let u = Math.max(0, t - 4); u <= Math.min(n - 1, t + 4); u++, k++) if (raw[u]) c++;
-    return c / k >= 0.6;
+    return c / k >= 0.5;
   });
   const runs: Span[] = [];
   for (let t = 0; t < n; t++) {
     if (!on[t]) continue;
     let e = t;
     while (e + 1 < n && on[e + 1]) e++;
-    if (e + 1 - t >= minRun) runs.push({ start: t, end: e + 1 });
+    const last = runs[runs.length - 1];
+    if (last && t - last.end <= 8) last.end = e + 1;
+    else runs.push({ start: t, end: e + 1 });
     t = e;
   }
-  if (!runs.length) return undefined;
-  return { start: (runs[0] as Span).start, end: (runs[runs.length - 1] as Span).end };
+  return runs.filter((r) => r.end - r.start >= minRun);
+}
+
+/**
+ * Where the song plays: from the first long part of music to the last. Short
+ * bits of music at the very start or end (an ambient intro, a sting over the
+ * credits) stay outside when there is a long part to anchor on.
+ */
+export function findSongSpan(s: MediaSignals, minRun = 15): Span | undefined {
+  const parts = findSongParts(s, minRun);
+  if (!parts.length) return undefined;
+  const long = parts.filter((p) => p.end - p.start >= 30);
+  const use = long.length ? long : parts;
+  return { start: (use[0] as Span).start, end: (use[use.length - 1] as Span).end };
+}
+
+/**
+ * Talking inside the song span: gaps of 10 s or more between parts of music
+ * where someone speaks (a skit halfway through a music video, banter between
+ * songs at a concert). With `floor`, the gap must also sound like talking:
+ * quieter than the song and dipping between words, so a sung bridge that
+ * thins out for a few bars stays in the song.
+ */
+export function findBreaks(s: MediaSignals, words: Word[], main: Span | undefined, minRun = 15): Span[] {
+  if (!main) return [];
+  const parts = findSongParts(s, minRun).filter((p) => p.end > main.start && p.start < main.end);
+  const songLevel = pct(parts.flatMap((p) => s.loudness.slice(p.start, p.end)), 0.5);
+  const spoken = (g: Span) => {
+    if (!s.floor?.length) return true;
+    return pct(s.loudness.slice(g.start, g.end), 0.5) <= songLevel - 3 && pct(s.floor.slice(g.start, g.end), 0.5) <= -8;
+  };
+  const out: Span[] = [];
+  for (let i = 1; i < parts.length; i++) {
+    const gap = { start: (parts[i - 1] as Span).end, end: (parts[i] as Span).start };
+    if (gap.end - gap.start < 10) continue;
+    if (words.filter((w) => w.start >= gap.start && w.end <= gap.end).length >= 3 && spoken(gap)) out.push(gap);
+  }
+  return out;
 }
 
 const norm = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
@@ -201,7 +252,7 @@ export function detectContentType(meta: SourceMeta, s: MediaSignals, words: Word
     if (still) add("song", 3, "a song over a still picture");
     else add("music_video", 3, "a song with moving pictures");
   }
-  if (song && songShare >= 0.4 && song.start >= 15 && words.some((w) => w.end <= song.start)) add("music_video", 1, `talking before the song starts at ${clock(song.start)}`);
+  if (song && songShare >= 0.4 && song.start >= 15 && words.filter((w) => w.end <= song.start).length >= 8) add("music_video", 1, `talking before the song starts at ${clock(song.start)}`);
   if (kind === "speech") {
     if (still) {
       add("podcast", 2, "talking over a still picture");
@@ -235,8 +286,9 @@ export function buildProfile(meta: SourceMeta, s: MediaSignals, words: Word[], k
   const d = chosen === "auto" ? detectContentType(meta, s, words, kind) : { type: chosen, confidence: 1, reasons: ["chosen in settings"] };
   if (!MUSIC.includes(d.type)) return { ...d, choruses: [] };
   const main = findSongSpan(s);
-  const choruses = findChoruses(words).filter((c) => !main || (c.end > main.start && c.start < main.end));
-  return { ...d, main, choruses };
+  const breaks = findBreaks(s, words, main);
+  const inSong = (c: Span) => !main || (c.end > main.start && c.start < main.end && !breaks.some((b) => overlap(c, b) >= (c.end - c.start) * 0.5));
+  return { ...d, main, choruses: findChoruses(words).filter(inSong), breaks };
 }
 
 const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -250,10 +302,12 @@ export function describeProfile(p: ContentProfile): string {
   return parts.join(" · ");
 }
 
-/** True when the clip opens before the song or is mostly outside it (a music video's skit, intro or outro). */
+const inBreak = (p: ContentProfile, c: Span) => p.breaks?.find((b) => overlap(c, b) >= (c.end - c.start) * 0.5);
+
+/** True when the clip opens before the song, is mostly outside it, or mostly sits in a talking break (a music video's skit, intro or outro). */
 export function outsideMain(p: ContentProfile, c: Span): boolean {
   if (!p.main) return false;
-  return c.start < p.main.start - 3 || overlap(c, p.main) < (c.end - c.start) * 0.5;
+  return c.start < p.main.start - 3 || overlap(c, p.main) < (c.end - c.start) * 0.5 || !!inBreak(p, c);
 }
 
 export function hasChorus(p: ContentProfile, c: Span): boolean {
@@ -269,6 +323,8 @@ export function fillerOpening(c: ClipCandidate): string | undefined {
 
 /** Where the clip sits in the source, in words Jev can use. */
 export function clipSection(p: ContentProfile, c: ClipCandidate): string {
+  const brk = inBreak(p, c);
+  if (p.main && brk && c.start >= p.main.start - 3) return `In a talking break inside the song (${clock(brk.start)}–${clock(brk.end)}): a skit or dialogue, not the song`;
   if (p.main && outsideMain(p, c)) return c.start < p.main.start ? `Opens before the song starts (${clock(p.main.start)}): an intro, skit or dialogue, not the song` : `After the song ends (${clock(p.main.end)}): an outro or skit, not the song`;
   const bits: string[] = [];
   if (p.main) bits.push("Inside the song");

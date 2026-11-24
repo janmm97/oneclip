@@ -5,7 +5,9 @@ import {
   detectContentType,
   findChoruses,
   findMoments,
+  findBreaks,
   findSongSpan,
+  outsideMain,
   jevState,
   parseLevels,
   withContent,
@@ -29,6 +31,24 @@ function skitThenSong(): MediaSignals {
     motion.push(t % 4 === 0 ? 0.4 : 0.05);
   }
   return { loudness, motion, variation };
+}
+
+/**
+ * A song measured with `floor`: a quiet verse (0-60 s, 12 dB under the
+ * chorus but full between notes), the loud song to 120 s, a spoken skit
+ * (120-160 s, gaps between words) and the song again to 260 s.
+ */
+function quietVerseSkitSong(): MediaSignals {
+  const loudness: number[] = [];
+  const floor: number[] = [];
+  const motion: number[] = [];
+  for (let t = 0; t < 260; t++) {
+    const skit = t >= 120 && t < 160;
+    loudness.push(skit ? -24 : t < 60 ? -22 : -10);
+    floor.push(skit ? -13 - (t % 3) : -3 - (t % 4));
+    motion.push(t % 4 === 0 ? 0.4 : 0.05);
+  }
+  return { loudness, motion, variation: loudness.map(() => 3), floor };
 }
 
 const say = (text: string, start: number, step = 0.4): Word[] => text.split(" ").map((w, i) => ({ word: w, start: start + i * step, end: start + i * step + step * 0.9 }));
@@ -64,6 +84,13 @@ describe("parseLevels", () => {
     expect(loudness[1]).toBeCloseTo(-23, 0);
     expect(variation[1]).toBeCloseTo(20); // -60 (clamped silence) vs -20
   });
+  it("measures how far the quiet moments sink: shallow for music, deep for talking", () => {
+    const log = (levels: number[]) => levels.flatMap((db, i) => [`pts_time:${(i / 10).toFixed(1)}`, `lavfi.astats.Overall.RMS_level=${db}`]).join("\n");
+    const music = parseLevels(log(Array.from({ length: 50 }, (_, i) => -12 - (i % 3)))).floor;
+    const talk = parseLevels(log(Array.from({ length: 50 }, (_, i) => (i % 4 === 3 ? -40 : -14)))).floor;
+    expect(music[2]).toBeGreaterThan(-4);
+    expect(talk[2]).toBeLessThan(-15);
+  });
 });
 
 describe("findSongSpan", () => {
@@ -77,6 +104,18 @@ describe("findSongSpan", () => {
     const s = skitThenSong();
     expect(findSongSpan({ ...s, variation: s.variation?.map(() => 5) })).toBeUndefined();
     expect(findSongSpan({ loudness: s.loudness, motion: s.motion })).toBeUndefined();
+  });
+  it("keeps a quiet first verse in the song (a ballad, a slow build)", () => {
+    expect(findSongSpan(quietVerseSkitSong())).toEqual({ start: 0, end: 260 });
+  });
+  it("finds a spoken skit halfway through the song", () => {
+    const s = quietVerseSkitSong();
+    const talk = say("so what are you doing here tonight I thought you left town for good", 125, 1);
+    const b = findBreaks(s, talk, findSongSpan(s));
+    expect(b).toHaveLength(1);
+    expect(b[0]?.start).toBeGreaterThanOrEqual(116);
+    expect(b[0]?.end).toBeLessThanOrEqual(164);
+    expect(findBreaks(s, [], findSongSpan(s))).toEqual([]); // a quiet instrumental bridge isn't a break
   });
 });
 
@@ -140,5 +179,14 @@ describe("content profile in ranking", () => {
     const m = findMoments("v", skitThenSong(), words(), "standard", "music", 6, 260, p);
     expect(m.length).toBeGreaterThan(0);
     for (const c of m) expect(c.start).toBeGreaterThanOrEqual((p.main?.start ?? 0) - 2);
+  });
+
+  it("treats a mid-video skit like an intro: not the song", () => {
+    const s = quietVerseSkitSong();
+    const q = buildProfile(meta({ title: "Singer - Song (Official Video)", categories: ["Music"] }), s, say("so what are you doing here tonight I thought you left town for good", 125, 1), "music");
+    expect(outsideMain(q, cand(125, 155))).toBe(true);
+    expect(outsideMain(q, cand(60, 90))).toBe(false);
+    expect(String(jevState(withContent(cand(125, 155), q)).clip_section)).toMatch(/talking break/);
+    for (const c of findMoments("v", s, [], "standard", "music", 12, 260, q)) expect(c.end <= 120 || c.start >= 155).toBe(true);
   });
 });
