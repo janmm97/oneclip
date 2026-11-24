@@ -8,6 +8,7 @@ export * from "./jev/evaluator.ts";
 export * from "./transcription/types.ts";
 export * from "./transcription/providers.ts";
 export * from "./transcription/subtitles.ts";
+export * from "./discovery/profile.ts";
 export * from "./discovery/segment.ts";
 export * from "./discovery/signals.ts";
 export * from "./plan/schema.ts";

@@ -88,6 +88,8 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
    - **English (translated when needed)**, the default. For a link, OneClip uses the site's English subtitles when it has them (a K-pop video's official English lyrics, for example); otherwise Whisper translates the audio into English on your machine.
    - **Original language**: captions in the language that's spoken or sung.
    - **No captions**.
+
+   **Content type** is **Auto-detect** by default. OneClip works out what the source is (music video, song, podcast or interview, talk or tutorial, live stream, gameplay, film or sketch, vlog, sports, or footage) from the page's title, tags and category and from the sound and picture. Each type tells Jev what the best clip looks like: the chorus or drop of a song, the payoff of a podcast story, the clutch play in gameplay. In a music video, OneClip finds where the song itself plays and which lyric repeats (the chorus). A spoken skit, intro or outro outside the song isn't picked, and if it is, it scores lower. Openings that are greetings or sponsor reads score lower in every type. If the guess is wrong, pick the type yourself. The project page shows what was detected, for example "Detected: Music video · song 1:08–4:48 · chorus at 1:42, 2:44, 4:17".
 3. **Processing** shows each stage live: probe, audio, transcribe, signals, candidates, Jev, plan. Talks, podcasts, songs, music videos, film scenes and silent footage all work: videos with no sound get a silent track and skip transcription. You can close the tab; the worker keeps going and resumes after a restart.
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
@@ -100,7 +102,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 |---|---|
 | `pnpm run setup [--skip-python] [--model base]` | First-run setup (see above) |
 | `pnpm run doctor [--test-jev]` | Checks Node, FFmpeg, libass, One, TypeSafe, Jev, transcription, editing agent, Remotion |
-| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--no-render]` | The whole pipeline without the UI |
+| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--content auto\|music_video\|podcast\|gameplay\|…] [--no-render]` | The whole pipeline without the UI |
 | `pnpm eval:hooks [--dry] [--feedback] [--json]` | Runs Jev over `datasets/` and reports precision@K, ranking agreement, strong-hook recall and false-positive rate |
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
 | `pnpm test` · `pnpm lint` · `pnpm build` | Unit and integration tests · type checks · production build |

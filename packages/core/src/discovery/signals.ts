@@ -8,6 +8,11 @@ export interface MediaSignals {
   loudness: number[];
   /** Largest scene-change score per second, 0..1 (frames sampled at 2 fps). */
   motion: number[];
+  /**
+   * How much the loudness moves inside each second (std of ten 100 ms levels, dB).
+   * Mixed music sits near 1-2 dB; speech, with its pauses between syllables, 3+ dB.
+   */
+  variation?: number[];
 }
 
 /** What drives the source: talking, sound/music without much talking, or picture alone. */
@@ -49,6 +54,34 @@ export function parseMetadataLog(log: string, key: string, empty: number): numbe
   return out;
 }
 
+/** Per-second loudness (power mean) and its spread, from 100 ms RMS levels. */
+export function parseLevels(log: string): { loudness: number[]; variation: number[] } {
+  const buckets: number[][] = [];
+  let t = -1;
+  for (const line of log.split(/\r?\n/)) {
+    const pts = /pts_time:(-?[\d.]+)/.exec(line);
+    if (pts) {
+      t = Math.max(0, Math.floor(Number(pts[1]) + 1e-6));
+      continue;
+    }
+    const i = line.indexOf("lavfi.astats.Overall.RMS_level=");
+    if (i < 0 || t < 0) continue;
+    const raw = line.slice(i + 31).trim();
+    const v = /^-?inf$/i.test(raw) ? -90 : Math.max(-90, Number(raw));
+    if (!Number.isFinite(v)) continue;
+    while (buckets.length <= t) buckets.push([]);
+    (buckets[t] as number[]).push(v);
+  }
+  const loudness = buckets.map((b) => (b.length ? 10 * Math.log10(b.reduce((s, db) => s + 10 ** (db / 10), 0) / b.length) : -90));
+  const variation = buckets.map((b) => {
+    if (b.length < 2) return 0;
+    const c = b.map((db) => Math.max(-60, db));
+    const m = c.reduce((s, x) => s + x, 0) / c.length;
+    return Math.sqrt(c.reduce((s, x) => s + (x - m) ** 2, 0) / c.length);
+  });
+  return { loudness, variation };
+}
+
 /** Loudness and visual change per second, in two parallel FFmpeg passes. */
 export async function analyzeSignals(ffmpeg: string, path: string): Promise<MediaSignals> {
   const run = async (args: string[]) => {
@@ -59,10 +92,10 @@ export async function analyzeSignals(ffmpeg: string, path: string): Promise<Medi
     return r.stderr;
   };
   const [audio, video] = await Promise.all([
-    run(["-vn", "-af", "aresample=8000,asetnsamples=n=8000:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level"]),
+    run(["-vn", "-af", "aresample=8000,asetnsamples=n=800:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level"]),
     run(["-an", "-vf", "fps=2,scale=160:-2,select='gte(scene,0)',metadata=print:key=lavfi.scene_score"]),
   ]);
-  return { loudness: parseMetadataLog(audio, "lavfi.astats.Overall.RMS_level", -90), motion: parseMetadataLog(video, "lavfi.scene_score", 0) };
+  return { ...parseLevels(audio), motion: parseMetadataLog(video, "lavfi.scene_score", 0) };
 }
 
 /** Seconds that have at least one transcribed word in them. */
@@ -111,6 +144,8 @@ export function findMoments(
   kind: MediaKind,
   max: number,
   duration = Math.max(s.loudness.length, s.motion.length),
+  /** Music: only open inside the song (`main`), and favour the chorus. */
+  focus?: { main?: { start: number; end: number }; choruses?: { start: number; end: number }[] },
 ): ClipCandidate[] {
   const { min, max: longest } = DURATION_PRESETS[preset];
   const target = Math.round((min + longest) / 2);
@@ -118,12 +153,15 @@ export function findMoments(
   const loud = s.loudness;
   const overall = avg(loud, 0, n, -90);
   const starts: { t: number; score: number }[] = [];
+  const main = focus?.main;
   for (let t = 0; t + min <= n; t++) {
+    if (main && (t < main.start - 2 || t + min > main.end + 2)) continue;
+    const chorus = focus?.choruses?.some((c) => t >= c.start - 2 && t <= c.start + 3) ? 2 : 0;
     const rise = t >= 3 ? Math.max(0, avg(loud, t, t + 3, -90) - avg(loud, t - 3, t, -90)) : 0;
     const level = avg(loud, t, t + target, -90) - overall;
     const visual = avg(s.motion, t, t + 3, 0);
     const cut = (s.motion[t] ?? 0) >= CUT_SCORE ? 0.5 : 0;
-    starts.push({ t, score: rise / 12 + level / 12 + visual * 3 + cut });
+    starts.push({ t, score: rise / 12 + level / 12 + visual * 3 + cut + chorus });
   }
   starts.sort((a, b) => b.score - a.score);
   const picked: number[] = [];
@@ -160,8 +198,7 @@ export function findMoments(
 }
 
 /** Spoken passages and sound/picture moments, shared by what drives the source. Kept in time order. */
-export function mixCandidates(sentences: ClipCandidate[], moments: ClipCandidate[], kind: MediaKind, max: number): ClipCandidate[] {
-  const share = { speech: 0.25, music: 0.5, visual: 1 }[kind];
+export function mixCandidates(sentences: ClipCandidate[], moments: ClipCandidate[], kind: MediaKind, max: number, share = { speech: 0.25, music: 0.5, visual: 1 }[kind]): ClipCandidate[] {
   const m = Math.min(moments.length, Math.max(Math.round(max * share), max - sentences.length));
   const kept = [...spread(sentences, max - m), ...moments.slice(0, m)];
   return kept.sort((a, b) => a.start - b.start);

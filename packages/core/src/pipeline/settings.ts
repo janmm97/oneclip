@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CONTENT_TYPE_KEYS } from "../discovery/content-types.ts";
 import { DURATION_PRESETS } from "../discovery/segment.ts";
 import { CAPTION_PRESETS, TEMPLATES } from "../plan/schema.ts";
 import { MODEL_SIZES } from "../transcription/types.ts";
@@ -18,6 +19,8 @@ export const ProjectSettingsSchema = z.object({
   captionPreset: z.enum(["auto", ...CAPTION_PRESETS]).default("auto"),
   /** english: always English (the site's English subtitles, else Whisper's translation); original: the spoken language; off: no captions. */
   captions: z.enum(CAPTION_MODES).default("english"),
+  /** What kind of source this is (music video, podcast, gameplay…). auto: detected from the page and the file. */
+  content: z.enum(["auto", ...CONTENT_TYPE_KEYS]).default("auto"),
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 

@@ -6,6 +6,7 @@ import { clipFolder, safeName, type Config } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { clips, jevCache, projects, renders, transcripts } from "../db/schema.ts";
 import { findCandidates, type ClipCandidate } from "../discovery/segment.ts";
+import { buildProfile, CONTENT_TYPES, contentAdjust, describeProfile, outsideMain, readSourceMeta, withContent } from "../discovery/profile.ts";
 import { analyzeSignals, attachMedia, classifyMedia, findMoments, mixCandidates } from "../discovery/signals.ts";
 import type { HookEvaluator, JevCache } from "../jev/evaluator.ts";
 import { selectTop, type HookEvaluation } from "../jev/rank.ts";
@@ -123,13 +124,14 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
 
   let source = project.sourcePath;
   let cover: string | undefined;
+  let title = project.title;
   if (!source && project.sourceUrl) {
     await stage("download", 0);
     const d = await downloadSource(cfg, project.sourceUrl, dir, (f) => progressUpdate(db, job.id, { progress: f * 0.02, message: `Downloading: ${Math.round(f * 100)}%` }));
     source = d.path;
     cover = d.cover;
     // Replace the placeholder (the link's host name) with the real title.
-    const title = project.title === new URL(project.sourceUrl).hostname ? d.title.slice(0, 200) : project.title;
+    title = project.title === new URL(project.sourceUrl).hostname ? d.title.slice(0, 200) : project.title;
     await db.update(projects).set({ sourcePath: source, title }).where(eq(projects.id, project.id));
   }
   await stage("prepare", 0.02);
@@ -186,15 +188,22 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
 
   await stage("signals", 0.5);
   const signals = await analyzeSignals(cfg.ffmpeg, source);
-  const kind = classifyMedia(signals, transcript.words);
+  const heard = classifyMedia(signals, transcript.words);
+  const meta = readSourceMeta(dir, project.sourceUrl ? title : basename(project.sourcePath ?? source, extname(project.sourcePath ?? source)));
+  const profile = buildProfile(meta, signals, transcript.words, heard, settings.content);
+  // Whisper "hears" words in instrumentals; a source known to be a song is music.
+  const kind = profile.type === "music_video" || profile.type === "song" ? "music" : heard;
+  const content = { type: profile.type, label: CONTENT_TYPES[profile.type].label, summary: describeProfile(profile), confidence: profile.confidence, reasons: profile.reasons };
+  await db.update(projects).set({ sourceInfo: { ...info, content } }).where(eq(projects.id, project.id));
 
-  await stage("candidates", 0.52, `Finding hooks and moments (${kind})`);
+  await stage("candidates", 0.52, `Finding the best parts of a ${content.label.toLowerCase()} (${content.summary})`);
   const videoId = project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id;
   const max = settings.maxCandidates;
   // Sentences only when there is real speech; moments always, from sound and picture.
-  const sentences = transcript.words.length >= 20 ? findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max }) : [];
-  const moments = findMoments(videoId, signals, transcript.words, settings.preset, kind, max, info.duration);
-  const candidates = mixCandidates(sentences, moments, kind, max).map((c) => attachMedia(c, signals, kind));
+  // In a song, only passages inside the song itself (not a skit before or after it).
+  const sentences = (transcript.words.length >= 20 ? findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max }) : []).filter((c) => !outsideMain(profile, c));
+  const moments = findMoments(videoId, signals, transcript.words, settings.preset, kind, max, info.duration, profile);
+  const candidates = mixCandidates(sentences, moments, kind, max, CONTENT_TYPES[profile.type].share).map((c) => withContent(attachMedia(c, signals, kind), profile));
   if (!candidates.length) throw new Error("No moments of the chosen length were found. Try a shorter duration preset.");
 
   await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev`);
@@ -204,7 +213,13 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   });
   const byId = new Map(evaluations.map((e) => [e.candidateId, e]));
   const ranked = selectTop(
-    candidates.map((c) => ({ candidate: c, evaluation: byId.get(c.id) as HookEvaluation })).filter((x) => x.evaluation),
+    candidates
+      .map((c) => ({ candidate: c, evaluation: byId.get(c.id) as HookEvaluation }))
+      .filter((x) => x.evaluation)
+      .map((x) => {
+        const adj = contentAdjust(profile, x.candidate, x.evaluation.final);
+        return { ...x, evaluation: { ...x.evaluation, final: adj.final, penalties: [...x.evaluation.penalties, ...adj.penalties] } };
+      }),
     settings.topN,
   );
 

@@ -14,6 +14,8 @@ export interface ClipCandidate {
   /** "moment": picked from sound and picture, not sentences. Never silence-trimmed. */
   kind?: "speech" | "moment";
   media?: CandidateMedia;
+  /** What kind of source this is and where the clip sits in it (see profile.ts). */
+  content?: { type: string; label: string; guide: string; section: string };
 }
 
 export const DURATION_PRESETS = {

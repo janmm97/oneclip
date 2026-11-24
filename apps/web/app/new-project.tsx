@@ -1,6 +1,6 @@
 "use client";
 
-import { DURATION_PRESETS, extractYouTubeId, type YouTubeMeta } from "@oneclip/core/browser";
+import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, type YouTubeMeta } from "@oneclip/core/browser";
 import { Link2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -17,6 +17,7 @@ const CAPTIONS = [
   ["original", "Original language"],
   ["off", "No captions"],
 ] as const;
+const CONTENT = [["auto", "Auto-detect"], ...Object.entries(CONTENT_TYPES).map(([k, v]) => [k, v.label] as const)] as const;
 const PLANNERS = [
   ["auto", "Auto (best available)"],
   ["openrouter", "OpenRouter via One (cheap models)"],
@@ -30,7 +31,7 @@ export function NewProject() {
   const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
   const [authorized, setAuthorized] = useState(false);
-  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english" });
+  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto" });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
@@ -118,6 +119,9 @@ export function NewProject() {
         </Field>
         <Field label="Captions" hint="English uses the link's own English subtitles when it has them, otherwise Whisper translates the speech or lyrics on this computer.">
           <Select options={CAPTIONS} value={s.captions} onChange={(e) => setS({ ...s, captions: e.target.value })} />
+        </Field>
+        <Field label="Content type" hint="Tells Jev what the best part looks like: the chorus of a song, the payoff of a podcast story, the play in gameplay. Auto reads the title, category and the sound and picture.">
+          <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
         </Field>
         <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
