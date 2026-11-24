@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { AbsoluteFill, interpolate, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, interpolate, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import { CAPTION_STYLES, type Caption, type EditPlan } from "@oneclip/core/browser";
 
 export interface ClipProps {
@@ -31,30 +31,53 @@ export function zoomAt(t: number, plan: EditPlan): number {
   return s;
 }
 
+/** Same timing as the FFmpeg path: a cut lasts (end - start) / speed. */
+const cutFrames = (c: EditPlan["cuts"][number], fps: number) => Math.max(1, Math.round(((c.end - c.start) / (c.speed ?? 1)) * fps));
+
 function Footage({ plan, src }: ClipProps) {
   const { fps } = useVideoConfig();
-  const x = CROP_X[plan.editing.cropMode];
   let from = 0;
   return (
     <>
-      {plan.cuts.map((c) => {
-        const frames = Math.max(1, Math.round((c.end - c.start) * fps));
+      {plan.cuts.map((c, i) => {
+        const frames = cutFrames(c, fps);
+        const x = CROP_X[c.cropMode ?? plan.editing.cropMode];
+        const rate = c.speed ?? 1;
+        const trim = Math.round(c.start * fps);
+        // The picture's own sound plays unless the shot is muted or borrows sound from another moment.
+        const ownSound = !c.muted && c.audioFrom === undefined;
+        const volume = c.volume ?? 1;
         const seq = (
-          <Sequence key={`${c.start}`} from={from} durationInFrames={frames} layout="none">
+          <Sequence key={i} from={from} durationInFrames={frames} layout="none">
             {plan.editing.layout === "blur-background" ? (
               <>
-                <OffthreadVideo src={src} trimBefore={Math.round(c.start * fps)} muted style={{ ...cover(x), filter: "blur(40px) brightness(0.6)", transform: "scale(1.15)" }} />
-                <OffthreadVideo src={src} trimBefore={Math.round(c.start * fps)} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "contain" }} />
+                <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted style={{ ...cover(x), filter: "blur(40px) brightness(0.6)", transform: "scale(1.15)" }} />
+                <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted={!ownSound} volume={volume} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "contain" }} />
               </>
             ) : (
-              <OffthreadVideo src={src} trimBefore={Math.round(c.start * fps)} style={cover(x)} />
+              <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted={!ownSound} volume={volume} style={cover(x)} />
             )}
+            {!c.muted && c.audioFrom !== undefined ? <Audio src={src} trimBefore={Math.round(c.audioFrom * fps)} playbackRate={rate} volume={volume} /> : null}
           </Sequence>
         );
         from += frames;
         return seq;
       })}
     </>
+  );
+}
+
+/** Audio bed from another moment, lowered while someone speaks. */
+function Bed({ plan, src }: ClipProps) {
+  const { fps } = useVideoConfig();
+  const b = plan.bed;
+  if (!b) return null;
+  const frames = Math.max(1, Math.round((b.end - b.start) * fps));
+  const gain = (f: number) => (b.duckUnder.some((r) => f / fps >= r.start && f / fps <= r.end) ? b.volume * b.duck : b.volume);
+  return (
+    <Sequence from={0} durationInFrames={frames} layout="none">
+      <Audio src={src} trimBefore={Math.round(b.start * fps)} volume={gain} />
+    </Sequence>
   );
 }
 
@@ -150,6 +173,7 @@ export function Clip(props: ClipProps) {
       <AbsoluteFill style={{ transform: `scale(${scale})`, opacity }}>
         <Footage {...props} />
       </AbsoluteFill>
+      <Bed {...props} />
       {plan.template === "storytelling-short" && (
         <AbsoluteFill style={{ background: "radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.65) 100%)" }} />
       )}

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { and, asc, eq } from "drizzle-orm";
 import { clipFolder, safeName, type Config } from "../config.ts";
@@ -185,6 +185,8 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     onStage: (m) => stage("transcribe", 0.5, m),
   });
   await db.update(projects).set({ transcriber: `${transcript.engine} ${transcript.model} · ${captions.source}` }).where(eq(projects.id, project.id));
+  // For editing agents and `pnpm edit`: every spoken word and caption word with its time.
+  writeFileSync(join(dir, "transcript.json"), JSON.stringify({ language: transcript.language, words: transcript.words, captions: captions.words }), "utf8");
 
   await stage("signals", 0.5);
   const signals = await analyzeSignals(cfg.ffmpeg, source);

@@ -5,6 +5,7 @@ import {
   assTime,
   buildAss,
   buildFilterGraph,
+  inputWindows,
   clipFolder,
   config,
   type EditPlan,
@@ -75,7 +76,8 @@ describe("ASS captions", () => {
 
 describe("FFmpeg filter graph", () => {
   it("trims each cut relative to the seek point, concatenates and finishes the chain", () => {
-    const g = buildFilterGraph(plan(), 9, "captions.ass");
+    expect(inputWindows(plan())).toEqual([{ start: 9, end: 31 }]);
+    const g = buildFilterGraph(plan(), inputWindows(plan()), "captions.ass");
     expect(g).toContain("trim=start=1.000:end=6.000");
     expect(g).toContain("trim=start=11.000:end=21.000");
     expect(g).toContain("concat=n=2:v=1:a=1[vc][ac]");
@@ -87,7 +89,40 @@ describe("FFmpeg filter graph", () => {
   });
 
   it("uses the blur layout when asked", () => {
-    expect(buildFilterGraph(plan({ editing: { ...plan().editing, layout: "blur-background" } }), 10)).toContain("boxblur");
+    expect(buildFilterGraph(plan({ editing: { ...plan().editing, layout: "blur-background" } }), [{ start: 9, end: 31 }])).toContain("boxblur");
+  });
+
+  it("opens far-apart moments as separate inputs and mixes borrowed sound, speed, mute and a ducked bed", () => {
+    const p = plan({
+      sourceStart: 10,
+      sourceEnd: 205,
+      cuts: [
+        { start: 10, end: 14, audioFrom: 200, cropMode: "left-third" },
+        { start: 20, end: 22, speed: 0.5, volume: 1.5 },
+        { start: 12, end: 13, muted: true },
+      ],
+      bed: { start: 100, end: 108, volume: 0.4, duck: 0.25, duckUnder: [{ start: 4, end: 6 }] },
+      outputDuration: 9,
+    });
+    const w = inputWindows(p);
+    expect(w).toEqual([
+      { start: 9, end: 23 },
+      { start: 99, end: 109 },
+      { start: 199, end: 205 },
+    ]);
+    const g = buildFilterGraph(p, w);
+    expect(g).toContain("[0:v]split=3[vs0][vs1][vs2]");
+    expect(g).toContain("[0:a]asplit=1[as1]");
+    expect(g).toContain("[1:a]asplit=1[bs]");
+    expect(g).toContain("[2:a]asplit=1[as0]");
+    expect(g).toContain("[as0]atrim=start=1.000:end=5.000");
+    expect(g).toContain("crop=1080:1920:(iw-ow)*0.2:(ih-oh)/2");
+    expect(g).toContain("setpts=(PTS-STARTPTS)/0.500");
+    expect(g).toContain("atempo=0.500,volume=1.500");
+    expect(g).toContain("anullsrc=r=48000:cl=stereo,atrim=duration=1.000[a2]");
+    expect(g).toContain("volume='if(gt(between(t,4.000,6.000),0),0.100,0.400)':eval=frame[bed]");
+    expect(g).toContain("[ac][bed]amix=inputs=2:duration=first:normalize=0[am]");
+    expect(g).toMatch(/\[am\]loudnorm/);
   });
 });
 
