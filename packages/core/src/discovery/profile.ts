@@ -248,11 +248,13 @@ export function detectContentType(meta: SourceMeta, s: MediaSignals, words: Word
   const still = motion < 0.01 && cutsPerMin < 1;
   const song = findSongSpan(s);
   const songShare = song ? (song.end - song.start) / n : 0;
-  if (kind === "music" || songShare >= 0.5) {
+  // Music under talking (a stream, a vlog) fills the gaps too; a song also repeats its lyric.
+  const sung = songShare >= 0.5 && findChoruses(words).length > 0;
+  if (kind === "music" || sung) {
     if (still) add("song", 3, "a song over a still picture");
     else add("music_video", 3, "a song with moving pictures");
   }
-  if (song && songShare >= 0.4 && song.start >= 15 && words.filter((w) => w.end <= song.start).length >= 8) add("music_video", 1, `talking before the song starts at ${clock(song.start)}`);
+  if (song && sung && song.start >= 15 && words.filter((w) => w.end <= song.start).length >= 8) add("music_video", 1, `talking before the song starts at ${clock(song.start)}`);
   if (kind === "speech") {
     if (still) {
       add("podcast", 2, "talking over a still picture");
