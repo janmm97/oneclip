@@ -23,6 +23,7 @@ export class FasterWhisperProvider implements TranscriptionProvider {
   async transcribe(wavPath: string, opts: TranscribeOptions): Promise<Transcript> {
     const args = [this.script, "--input", wavPath, "--model", opts.model, "--device", opts.device ?? "auto"];
     if (opts.language) args.push("--language", opts.language);
+    if (opts.task === "translate") args.push("--task", "translate");
     const r = await runProcess(this.python, args, {
       timeoutMs: 4 * 60 * 60_000,
       onStderr: (chunk) => {
@@ -93,7 +94,7 @@ export class OnnxWhisperProvider implements TranscriptionProvider {
     for (let off = 0; off < audio.length; off += win) {
       const slice = audio.subarray(off, Math.min(audio.length, off + win));
       const base = off / 16_000;
-      const out = (await asr(slice, { return_timestamps: "word", language: opts.language ?? "en" })) as {
+      const out = (await asr(slice, { return_timestamps: "word", language: opts.language ?? "en", task: opts.task ?? "transcribe" })) as {
         chunks?: { text: string; timestamp: [number, number | null] }[];
       };
       for (const c of out.chunks ?? []) {

@@ -3,6 +3,8 @@ import { DURATION_PRESETS } from "../discovery/segment.ts";
 import { CAPTION_PRESETS, TEMPLATES } from "../plan/schema.ts";
 import { MODEL_SIZES } from "../transcription/types.ts";
 
+export const CAPTION_MODES = ["english", "original", "off"] as const;
+
 export const ProjectSettingsSchema = z.object({
   preset: z.enum(Object.keys(DURATION_PRESETS) as [keyof typeof DURATION_PRESETS, ...(keyof typeof DURATION_PRESETS)[]]).default("standard"),
   topN: z.number().int().min(1).max(20).default(5),
@@ -14,6 +16,8 @@ export const ProjectSettingsSchema = z.object({
   renderer: z.enum(["remotion", "ffmpeg"]).default("remotion"),
   template: z.enum(["auto", ...TEMPLATES]).default("auto"),
   captionPreset: z.enum(["auto", ...CAPTION_PRESETS]).default("auto"),
+  /** english: always English (the site's English subtitles, else Whisper's translation); original: the spoken language; off: no captions. */
+  captions: z.enum(CAPTION_MODES).default("english"),
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
