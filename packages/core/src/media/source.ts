@@ -178,3 +178,24 @@ export async function ensureVideo(cfg: Config, input: string, dir: string, cover
   if (r.code !== 0) throw new Error(`Couldn't turn the audio into a video: ${r.stderr.trim().slice(-300)}`);
   return out;
 }
+
+/**
+ * Silent videos (screen captures, B-roll, animations) get a silent audio track,
+ * so they can be analysed and rendered like anything else. The picture is copied
+ * when MP4 can hold it; codecs it can't (FLV1, WMV and the like) are re-encoded
+ * to H.264 as a fallback.
+ */
+export async function ensureAudio(cfg: Config, input: string, dir: string, hasAudio: boolean): Promise<string> {
+  if (hasAudio) return input;
+  const out = join(dir, "source-with-audio.mp4");
+  const run = (video: string[]) =>
+    runProcess(
+      cfg.ffmpeg,
+      ["-y", "-v", "error", "-i", input, "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-map", "0:v:0", "-map", "1:a", ...video, "-c:a", "aac", "-shortest", out],
+      { timeoutMs: 4 * 60 * 60_000 },
+    );
+  let r = await run(["-c:v", "copy"]);
+  if (r.code !== 0) r = await run(["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"]);
+  if (r.code !== 0) throw new Error(`Couldn't add a silent audio track: ${r.stderr.trim().slice(-300)}`);
+  return out;
+}

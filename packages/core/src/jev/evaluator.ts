@@ -11,14 +11,26 @@ export interface HookEvaluator {
 
 /** What Jev sees for one candidate. The transcript is data to judge, never instructions. */
 export function jevState(c: ClipCandidate): Record<string, unknown> {
-  return {
-    task: "Rank this candidate clip from a long video for use as a standalone short-form video.",
+  const state: Record<string, unknown> = {
+    task: "Rank this candidate clip from a longer source (a video, podcast, song, music video, film scene or silent footage) for use as a standalone short-form video. Judge the hook by whatever grabs attention in the first seconds: words, sound or picture.",
     opening_text: c.openingText,
     clip_transcript: c.transcript,
     preceding_context: c.precedingContext,
     following_context: c.followingContext,
     duration_seconds: Math.round(c.duration * 10) / 10,
   };
+  if (c.media) {
+    Object.assign(state, {
+      source_kind: c.media.kind,
+      picked_by: c.kind === "moment" ? "sound and picture" : "complete spoken sentences",
+      opening_sound_and_picture: c.media.opening,
+      loudness_per_second: c.media.loudness,
+      visual_change_per_second: c.media.motion,
+      scene_cuts: c.media.cuts,
+      signal_note: "The per-second strips are FFmpeg measurements, one digit per second on a 0-9 scale (loudness: 0 silent, 9 loudest; visual change: 0 still, 9 hard cut).",
+    });
+  }
+  return state;
 }
 
 export function jevRequest(c: ClipCandidate, model: string): JevRequest {

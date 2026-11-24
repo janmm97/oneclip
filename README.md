@@ -20,7 +20,8 @@ OneClip is an open-source AI video clipper powered by [One](https://withone.ai),
 flowchart LR
   A[A video or podcast link<br/>or a local video/audio file] --> B[FFprobe + FFmpeg<br/>probe, 16 kHz audio]
   B --> C[Transcribe locally<br/>faster-whisper or ONNX Whisper]
-  C --> D[Candidate clips<br/>sentence-aligned, preset length]
+  C --> S[Measure sound and picture<br/>FFmpeg loudness + scene changes]
+  S --> D[Candidate clips<br/>spoken passages + sound/picture moments]
   D --> E[Jev via One CLI<br/>6 scores + context + hook type]
   E --> F[Rank, penalise,<br/>de-duplicate, top N]
   F --> G[Edit plan<br/>OpenRouter via One / Claude Code /<br/>OpenCode / template]
@@ -80,7 +81,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 
 1. **Setup** shows the same checks as `pnpm run doctor`, with the exact fix for anything red. "Test Jev live" sends one small request.
 2. **New clip.** Paste a link (YouTube or any video, audio or podcast site yt-dlp supports) or the full path to a video or audio file on your computer, and tick that you own it or are authorised to edit it. Links are downloaded when the analysis starts; audio-only sources (podcasts, MP3s) are turned into a cover-art video first. Pick the clip length, how many clips to keep, the renderer and the edit planner.
-3. **Processing** shows each stage live: probe, audio, transcribe, candidates, Jev, plan. You can close the tab; the worker keeps going and resumes after a restart.
+3. **Processing** shows each stage live: probe, audio, transcribe, signals, candidates, Jev, plan. Talks, podcasts, songs, music videos, film scenes and silent footage all work: videos with no sound get a silent track and skip transcription. You can close the tab; the worker keeps going and resumes after a restart.
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
 
@@ -101,7 +102,23 @@ Optional settings are in [`.env.example`](.env.example) (data folder, clips fold
 
 ## How Jev ranks hooks
 
-For each candidate clip, OneClip sends **one** request to Jev (TypeSafe's "Answer questions using Systemone" action) through `one actions execute`. It asks eight questions about the clip text:
+### Hooks in any kind of media
+
+Words aren't the only hook. Before picking candidates, OneClip measures every second of the source with FFmpeg (locally, no AI): how loud it is and how much the picture changes (scene cuts, motion). From that it decides what drives the source:
+
+| Source | Example | Candidates |
+|---|---|---|
+| Speech | Talks, podcasts, interviews | Mostly complete spoken passages, plus about a quarter sound/picture moments |
+| Music | Songs, instrumentals, sound-led scenes | Half spoken (lyrics) passages, half moments |
+| Visual | Silent footage, b-roll, scenes with little sound | All moments |
+
+A **moment** opens where the sound jumps (a drop, a chorus, a hit), on a loud stretch, or on a cut or fast motion, and ends near the preset length on a cut or a dip, never mid-word. Moments are rendered whole (no silence trimming, so the beat isn't broken). Jev gets each clip's opening summarised in words ("First 3 s: sound jumps 18 dB, louder than the rest of the source; 2 scene cuts; lots of visual change.") and a 0–9 strip per second for loudness and visual change, next to any words. Two hook types cover what words can't: **sonic drop** and **visual spectacle**.
+
+Jev reads text, not the media itself, so it judges sound and picture from these measurements. Songs with lyrics all the way through are usually classed as speech; they still get moments and Jev still sees their sound and picture.
+
+### The questions
+
+For each candidate clip, OneClip sends **one** request to Jev (TypeSafe's "Answer questions using Systemone" action) through `one actions execute`. It asks eight questions about the clip's words, sound and picture:
 
 | Question | Jev answer type | Weight |
 |---|---|---|
@@ -112,7 +129,7 @@ For each candidate clip, OneClip sends **one** request to Jev (TypeSafe's "Answe
 | Emotional engagement | Score | 0.10 |
 | Editing suitability | Score | 0.10 |
 | Context integrity: is it a complete thought? | Noul (0 to 1) | gate |
-| Hook type (curiosity gap, bold claim, contrarian, storytelling, …) | Choice | label |
+| Hook type (curiosity gap, contrarian, storytelling, sonic drop, visual spectacle, …) | Choice | label |
 
 The final score is the weighted sum, then:
 

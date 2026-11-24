@@ -17,7 +17,7 @@ const DIMENSIONS: Record<keyof typeof WEIGHTS, string> = {
   emotionalEngagement: "Emotion",
   editingSuitability: "Editability",
 };
-const hookName = (h: HookType) => (h === "none" ? "No clear hook" : h.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase()));
+const hookName = (h: HookType) => (h === "none" ? "No clear hook" : h.replace(/[_-]/g, " ").replace(/^./, (c) => c.toUpperCase()));
 
 export function Results({ projectId, view, clips, refresh }: { projectId: string; view: View; clips: ClipRow[]; refresh: () => Promise<void> }) {
   const [selected, setSelected] = useState(clips[0].id);
