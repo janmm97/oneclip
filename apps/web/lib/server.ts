@@ -1,4 +1,5 @@
-import { config, type Db, ensureDirs, openDb, schema } from "@oneclip/core";
+import { basename } from "node:path";
+import { clipFolder, config, type Db, ensureDirs, openDb, schema } from "@oneclip/core";
 import { asc, desc, eq } from "drizzle-orm";
 
 /** One DB handle per server process (survives Next dev hot reloads). */
@@ -51,9 +52,11 @@ export async function projectView(id: string) {
     db.select().from(schema.feedback).where(eq(schema.feedback.projectId, id)).orderBy(desc(schema.feedback.createdAt)).all(),
   ]);
   // Never send local file paths to the browser; the media routes resolve them by ID.
+  // The clips folder is shown by name only: "clips/<folder>", or "<ONECLIP_CLIPS_DIR>/<folder>".
   const { sourcePath: _s, ...safeProject } = project;
+  const clipsFolder = `${process.env.ONECLIP_CLIPS_DIR ? "<ONECLIP_CLIPS_DIR>" : "clips"}/${basename(clipFolder(app().cfg, project))}`;
   return {
-    project: { ...safeProject, fileName: _s.split(/[\\/]/).pop() ?? "" },
+    project: { ...safeProject, fileName: _s.split(/[\\/]/).pop() ?? "", clipsFolder },
     jobs,
     clips: clips.map((c) => ({ ...c, rating: feedback.find((f) => f.clipId === c.id)?.rating ?? null })),
     renders: renders.map(({ path: _p, thumbPath, ...r }) => ({ ...r, hasThumb: Boolean(thumbPath) })),

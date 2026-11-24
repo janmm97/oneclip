@@ -84,6 +84,8 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
 
+**Where your clips go.** Every 1080p clip is saved automatically in the `clips/` folder inside your OneClip folder, one subfolder per video: `clips/<video-title>-<id>/01-<clip-title>.mp4`, `02-…`, in rank order. You don't need to pick or create a folder; it's made on first use and git-ignored. Set `ONECLIP_CLIPS_DIR` to save them somewhere else. Quick previews stay in `.oneclip`.
+
 ## Command line
 
 | Command | What it does |
@@ -95,7 +97,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
 | `pnpm test` · `pnpm lint` · `pnpm build` | Unit and integration tests · type checks · production build |
 
-Optional settings are in [`.env.example`](.env.example) (data folder, Python path, binary paths, Jev model, concurrency, OpenRouter models). None of them is a secret.
+Optional settings are in [`.env.example`](.env.example) (data folder, clips folder, Python path, binary paths, Jev model, concurrency, OpenRouter models). None of them is a secret.
 
 ## How Jev ranks hooks
 
@@ -161,7 +163,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 - Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
 - Links are downloaded to your computer; nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
-- Projects, transcripts and the database live in `./.oneclip` (git-ignored). Delete that folder to delete everything.
+- Projects, transcripts and the database live in `./.oneclip`, finished clips in `./clips` (both git-ignored). Delete both folders to delete everything.
 
 Only process videos you own or are authorised to edit.
 

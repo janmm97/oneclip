@@ -11,6 +11,8 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     dataDir,
     dbPath: join(dataDir, "oneclip.db"),
     projectsDir: join(dataDir, "projects"),
+    /** Finished 1080p clips, one sub-folder per video. Made automatically; visible, outside the hidden data folder. */
+    clipsDir: resolve(findRoot(), env.ONECLIP_CLIPS_DIR || "clips"),
     python: env.ONECLIP_PYTHON || (process.platform === "win32" ? "python" : "python3"),
     jevModel: env.ONECLIP_JEV_MODEL || "jev-latest",
     jevConcurrency: clampInt(env.ONECLIP_JEV_CONCURRENCY, 3, 1, 8),
@@ -29,6 +31,18 @@ export type Config = ReturnType<typeof config>;
 
 export function ensureDirs(c: Config) {
   mkdirSync(c.projectsDir, { recursive: true });
+  mkdirSync(c.clipsDir, { recursive: true });
+}
+
+/** A file or folder name safe on Windows, macOS and Linux: letters and digits joined by "-", at most `max` chars. */
+export function safeName(s: string, max = 50): string {
+  return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, max).replace(/^-+|-+$/g, "");
+}
+
+/** The folder a project's finished clips go to: `<clipsDir>/<title>-<first 8 of id>`. */
+export function clipFolder(c: Config, project: { id: string; title: string }): string {
+  const title = safeName(project.title);
+  return join(c.clipsDir, `${title ? `${title}-` : ""}${project.id.slice(0, 8)}`);
 }
 
 /** A comma-separated env list, at most `max` items; undefined when empty. */
