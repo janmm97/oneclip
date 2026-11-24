@@ -50,7 +50,7 @@ flowchart LR
 | FFmpeg + FFprobe | 6 or newer, with libass | libass is only needed for the FFmpeg renderer's captions. On Windows, the gyan.dev "full" build has it |
 | One CLI | 2.x | `npm i -g @withone/cli`, then a free One account |
 | A TypeSafe account | — | Connected in One with `one add typesafe` |
-| Python | 3.10 to 3.12 (optional) | For faster-whisper. Without it, OneClip uses Whisper on ONNX Runtime (CPU) |
+| Python | 3.10 to 3.12 (needed for links) | Installs yt-dlp for YouTube and other links, and faster-whisper. Without it, local files still work and OneClip uses Whisper on ONNX Runtime (CPU) |
 | OpenRouter (optional) | — | For AI edit plans with cheap models: `one add open-router`. Claude Code or OpenCode also work. Without any of them, the built-in template planner is used |
 | Disk | ~1 GB free | Whisper model, Chrome Headless Shell (~131 MB, downloaded on the first Remotion render), renders |
 
