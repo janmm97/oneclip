@@ -32,7 +32,7 @@ export function redact(text: string): string {
 export function runProcess(
   cmd: string,
   args: string[],
-  opts: { timeoutMs: number; input?: string; env?: NodeJS.ProcessEnv; cwd?: string; onStderr?: (chunk: string) => void },
+  opts: { timeoutMs: number; input?: string; env?: NodeJS.ProcessEnv; cwd?: string; onStderr?: (chunk: string) => void; onStdout?: (chunk: string) => void },
 ): Promise<ProcResult> {
   return new Promise((resolve, reject) => {
     let child;
@@ -49,7 +49,10 @@ export function runProcess(
       timedOut = true;
       child.kill("SIGKILL");
     }, opts.timeoutMs);
-    child.stdout.setEncoding("utf8").on("data", (d: string) => (stdout += d));
+    child.stdout.setEncoding("utf8").on("data", (d: string) => {
+      stdout += d;
+      opts.onStdout?.(d);
+    });
     child.stderr.setEncoding("utf8").on("data", (d: string) => {
       stderr += d;
       opts.onStderr?.(d);

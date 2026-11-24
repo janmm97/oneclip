@@ -17,7 +17,8 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as { sourcePath?: unknown; authorized?: unknown; youtubeUrl?: unknown; title?: unknown; settings?: unknown };
     let youtube: YouTubeMeta | undefined;
-    if (typeof body.youtubeUrl === "string" && body.youtubeUrl.trim()) youtube = await fetchYouTubeMeta(body.youtubeUrl.trim());
+    // The preview is nice to have: a private or unlisted video still downloads without it.
+    if (typeof body.youtubeUrl === "string" && body.youtubeUrl.trim()) youtube = await fetchYouTubeMeta(body.youtubeUrl.trim()).catch(() => undefined);
     const { projectId } = await createProject(app(), {
       sourcePath: String(body.sourcePath ?? ""),
       authorized: body.authorized === true,

@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Added
+- Links as input: paste a YouTube link or a link from any site yt-dlp supports (other video platforms, SoundCloud, podcast pages, direct media URLs). OneClip downloads it (best quality up to 1080p) in the analyze job, with progress, and uses the page's title. yt-dlp is found on PATH or installed with pip on first use.
+- Audio and podcasts: MP3, M4A, WAV, AAC, FLAC, OGG, Opus and WMA files (and audio-only links) become a 1080×1080 video of the cover art over a blurred background, then clip like any video. More video containers accepted (M4V, AVI, WMV, FLV, TS, MTS, MPG, 3GP, OGV).
 - Project scaffold: MIT licence, README, contributing guide, code of conduct, security policy, issue and PR templates, CI.
 - Core pipeline: FFprobe/FFmpeg ingestion, local transcription (faster-whisper with an ONNX Whisper fallback), sentence-aligned candidate clips with four length presets.
 - Jev hook ranking through the One CLI: six weighted scores, a context-integrity gate, hook types, penalties, de-duplication, top N, SQLite cache.

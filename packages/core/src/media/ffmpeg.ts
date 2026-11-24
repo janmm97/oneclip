@@ -12,7 +12,10 @@ export interface MediaInfo {
   audioDuration?: number;
 }
 
-export const ALLOWED_EXTENSIONS = [".mp4", ".mov", ".mkv", ".webm"] as const;
+export const ALLOWED_EXTENSIONS = [
+  ...[".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi", ".wmv", ".flv", ".ts", ".mts", ".m2ts", ".mpg", ".mpeg", ".3gp", ".ogv"],
+  ...[".mp3", ".m4a", ".wav", ".aac", ".flac", ".ogg", ".opus", ".wma"],
+] as const;
 
 function fpsOf(rate: string | undefined): number {
   const [n, d] = (rate ?? "0/1").split("/").map(Number);
@@ -21,11 +24,11 @@ function fpsOf(rate: string | undefined): number {
 
 interface ProbeJson {
   format?: { duration?: string };
-  streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; duration?: string; side_data_list?: { rotation?: number }[] }[];
+  streams?: { codec_type?: string; codec_name?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; duration?: string; side_data_list?: { rotation?: number }[]; disposition?: { attached_pic?: number } }[];
 }
 
 export function parseProbe(j: ProbeJson): MediaInfo {
-  const v = j.streams?.find((s) => s.codec_type === "video");
+  const v = j.streams?.find((s) => s.codec_type === "video" && !s.disposition?.attached_pic);
   const a = j.streams?.find((s) => s.codec_type === "audio");
   if (!v) throw new Error("No video stream found");
   const rot = Math.abs(v.side_data_list?.find((d) => d.rotation !== undefined)?.rotation ?? 0);

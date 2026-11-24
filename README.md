@@ -18,7 +18,7 @@ OneClip is an open-source AI video clipper powered by [One](https://withone.ai),
 
 ```mermaid
 flowchart LR
-  A[Your video file<br/>+ optional YouTube link] --> B[FFprobe + FFmpeg<br/>probe, 16 kHz audio]
+  A[A video or podcast link<br/>or a local video/audio file] --> B[FFprobe + FFmpeg<br/>probe, 16 kHz audio]
   B --> C[Transcribe locally<br/>faster-whisper or ONNX Whisper]
   C --> D[Candidate clips<br/>sentence-aligned, preset length]
   D --> E[Jev via One CLI<br/>6 scores + context + hook type]
@@ -79,7 +79,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 ## Using the app
 
 1. **Setup** shows the same checks as `pnpm run doctor`, with the exact fix for anything red. "Test Jev live" sends one small request.
-2. **New clip.** Paste a YouTube link if you like (OneClip only reads its title and thumbnail through YouTube's public oEmbed endpoint; it never downloads from YouTube). Then give the full path to the video file on your computer, and tick that you own it or are authorised to edit it. Pick the clip length, how many clips to keep, the renderer and the edit planner.
+2. **New clip.** Paste a link (YouTube or any video, audio or podcast site yt-dlp supports) or the full path to a video or audio file on your computer, and tick that you own it or are authorised to edit it. Links are downloaded when the analysis starts; audio-only sources (podcasts, MP3s) are turned into a cover-art video first. Pick the clip length, how many clips to keep, the renderer and the edit planner.
 3. **Processing** shows each stage live: probe, audio, transcribe, candidates, Jev, plan. You can close the tab; the worker keeps going and resumes after a restart.
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
@@ -151,14 +151,15 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 | TypeSafe Jev | Scoring clips | About **1,400 tokens per candidate clip** on your TypeSafe account. The default 24 candidates ≈ 34k tokens per video. `pnpm run doctor --test-jev` ≈ 300 tokens. `pnpm eval:hooks` ≈ 41k tokens. Cached answers are free |
 | OpenRouter (optional) | Edit plans | One request per kept clip (about 4k characters in) on your OpenRouter account. Measured with `deepseek/deepseek-v4-flash`: **$0.0001 to $0.0006 per clip** (6 plans, average $0.0003), so about $0.002 for the default 5 clips |
 | Claude Code / OpenCode (optional) | Edit plans | One short prompt per clip on your own plan or API key |
-| YouTube oEmbed | Title and thumbnail | Free, no key |
+| YouTube oEmbed | Title and thumbnail preview | Free, no key |
+| yt-dlp | Downloads links from YouTube and other sites | Free, open source; installed with pip on first use |
 | Remotion | Rendering | Free for individuals and small companies; larger companies need a [Remotion company licence](https://www.remotion.dev/license) |
 
 ## Privacy
 
 - Your video, audio and renders never leave your machine.
 - Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
-- Nothing is uploaded to YouTube or anywhere else. There is no telemetry.
+- Links are downloaded to your computer; nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
 - Projects, transcripts and the database live in `./.oneclip` (git-ignored). Delete that folder to delete everything.
 

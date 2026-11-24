@@ -31,7 +31,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{view.project.title}</h1>
-          <p className="mt-1 truncate font-mono text-xs text-muted">{view.project.fileName}</p>
+          <p className="mt-1 truncate font-mono text-xs text-muted">{view.project.fileName || view.project.sourceUrl}</p>
         </div>
         {view.project.status === "ready" ? (
           <ButtonLink href={`/projects/${id}/exports`}>
@@ -42,7 +42,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         ) : null}
       </div>
 
-      {analyzing ? <Processing stage={analyze?.stage ?? null} progress={analyze?.progress ?? 0} message={analyze?.message ?? "Waiting for the worker"} /> : null}
+      {analyzing ? <Processing link={Boolean(view.project.sourceUrl)} stage={analyze?.stage ?? null} progress={analyze?.progress ?? 0} message={analyze?.message ?? "Waiting for the worker"} /> : null}
 
       {view.project.status === "failed" ? (
         <div className="mt-8 grid max-w-2xl gap-3">
@@ -78,8 +78,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   );
 }
 
-function Processing({ stage, progress, message }: { stage: string | null; progress: number; message: string }) {
-  const steps = STAGES.filter((s) => s !== "render");
+function Processing({ link, stage, progress, message }: { link: boolean; stage: string | null; progress: number; message: string }) {
+  const steps = STAGES.filter((s) => s !== "render" && (link || s !== "download"));
   const at = stage ? steps.indexOf(stage as (typeof steps)[number]) : -1;
   return (
     <section className="mt-8 max-w-2xl rounded-lg border border-line bg-panel p-5" aria-live="polite">

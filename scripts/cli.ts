@@ -1,14 +1,14 @@
 /**
  * Headless OneClip: same pipeline as the web app, from the terminal.
  *
- *   pnpm clip <video> [--preset standard] [--top 5] [--candidates 24]
+ *   pnpm clip <file-or-link> [--preset standard] [--top 5] [--candidates 24]
  *             [--transcriber auto|faster-whisper|whisper-onnx] [--model small]
  *             [--planner auto|openrouter|claude-code|opencode|template]
  *             [--renderer remotion|ffmpeg] [--quality final|preview] [--no-render]
  */
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { config, createDeps, createProject, ensureDirs, openDb, queueRenders, runJob, schema, type Job } from "@oneclip/core";
+import { config, createDeps, createProject, ensureDirs, isRemoteSource, openDb, queueRenders, runJob, schema, type Job } from "@oneclip/core";
 import { asc, eq } from "drizzle-orm";
 
 const { values, positionals } = parseArgs({
@@ -28,7 +28,7 @@ const { values, positionals } = parseArgs({
 
 const file = positionals[0];
 if (!file) {
-  console.error("Usage: pnpm clip <video.mp4> [options]   (see scripts/cli.ts)");
+  console.error("Usage: pnpm clip <video, audio or link> [options]   (see scripts/cli.ts)");
   process.exit(2);
 }
 
@@ -67,7 +67,7 @@ async function drain(projectId: string) {
 }
 
 const { projectId } = await createProject(deps, {
-  sourcePath: resolve(file),
+  sourcePath: isRemoteSource(file) ? file : resolve(file),
   authorized: true,
   settings: {
     preset: values.preset as never,

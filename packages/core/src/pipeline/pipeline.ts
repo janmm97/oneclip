@@ -9,6 +9,7 @@ import { findCandidates, type ClipCandidate } from "../discovery/segment.ts";
 import type { HookEvaluator, JevCache } from "../jev/evaluator.ts";
 import { selectTop, type HookEvaluation } from "../jev/rank.ts";
 import { ALLOWED_EXTENSIONS, extractAudio, probe, thumbnail, verifyRender, type MediaInfo } from "../media/ffmpeg.ts";
+import { downloadSource, ensureVideo, isRemoteSource } from "../media/source.ts";
 import type { JevResponse } from "../one/client.ts";
 import { compilePlan } from "../plan/compile.ts";
 import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
@@ -46,6 +47,7 @@ export function projectDir(cfg: Config, id: string) {
 // ---------- create ----------
 
 export interface NewProject {
+  /** A file on this computer, or a link (YouTube, any video site, a podcast episode). */
   sourcePath: string;
   authorized: boolean;
   youtube?: YouTubeMeta;
@@ -56,14 +58,27 @@ export interface NewProject {
 export async function createProject(deps: Pick<PipelineDeps, "db" | "cfg">, input: NewProject): Promise<{ projectId: string; jobId: string }> {
   if (!input.authorized) throw new Error("Confirm you own this video or are authorised to use it.");
   const p = input.sourcePath.trim().replace(/^"(.*)"$/, "$1");
-  if (!isAbsolute(p)) throw new Error("Give the full path to the video file.");
+  const settings = ProjectSettingsSchema.parse(input.settings ?? {});
+  const id = randomUUID();
+  if (isRemoteSource(p)) {
+    await deps.db.insert(projects).values({
+      id,
+      title: (input.title || input.youtube?.title || new URL(p).hostname).slice(0, 200),
+      youtubeUrl: input.youtube?.url ?? null,
+      youtubeMeta: input.youtube ?? null,
+      sourcePath: "",
+      sourceUrl: p,
+      settings,
+      status: "queued",
+    });
+    return { projectId: id, jobId: await enqueue(deps.db, { projectId: id, kind: "analyze" }) };
+  }
+  if (!isAbsolute(p)) throw new Error("Paste a video or podcast link, or the full path to a file on this computer.");
   // Network shares (\\host\share, //host/share) would make the machine authenticate to that host: local files only.
   if (/^[\\/]{2}/.test(p)) throw new Error("Use a file on this computer, not a network share.");
   if (!ALLOWED_EXTENSIONS.includes(extname(p).toLowerCase() as (typeof ALLOWED_EXTENSIONS)[number]))
     throw new Error(`Supported files: ${ALLOWED_EXTENSIONS.join(", ")}`);
   if (!existsSync(p) || !statSync(p).isFile()) throw new Error("That file doesn't exist.");
-  const settings = ProjectSettingsSchema.parse(input.settings ?? {});
-  const id = randomUUID();
   await deps.db.insert(projects).values({
     id,
     title: (input.title || input.youtube?.title || basename(p)).slice(0, 200),
@@ -104,20 +119,35 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   };
   await db.update(projects).set({ status: "running", error: null, updatedAt: Date.now() }).where(eq(projects.id, project.id));
 
+  let source = project.sourcePath;
+  let cover: string | undefined;
+  if (!source && project.sourceUrl) {
+    await stage("download", 0);
+    const d = await downloadSource(cfg, project.sourceUrl, dir, (f) => progressUpdate(db, job.id, { progress: f * 0.02, message: `Downloading: ${Math.round(f * 100)}%` }));
+    source = d.path;
+    cover = d.cover;
+    // Replace the placeholder (the link's host name) with the real title.
+    const title = project.title === new URL(project.sourceUrl).hostname ? d.title.slice(0, 200) : project.title;
+    await db.update(projects).set({ sourcePath: source, title }).where(eq(projects.id, project.id));
+  }
+  await stage("prepare", 0.02);
+  const video = await ensureVideo(cfg, source, dir, cover);
+  if (video !== source) await db.update(projects).set({ sourcePath: (source = video) }).where(eq(projects.id, project.id));
+
   await stage("probe", 0.02);
-  const info = await probe(cfg.ffprobe, project.sourcePath);
+  const info = await probe(cfg.ffprobe, source);
   if (!info.hasAudio) throw new Error("This video has no audio track, so there's nothing to transcribe.");
   await db.update(projects).set({ sourceInfo: info }).where(eq(projects.id, project.id));
 
   const provider = await deps.transcriber(settings);
-  const key = `${fileFingerprint(project.sourcePath)}:${provider.name}:${settings.model}:${settings.language ?? "auto"}`;
+  const key = `${fileFingerprint(source)}:${provider.name}:${settings.model}:${settings.language ?? "auto"}`;
   let transcript = (await db.select().from(transcripts).where(eq(transcripts.cacheKey, key)).get())?.data as Transcript | undefined;
   if (transcript) {
     await stage("transcribe", 0.5, "Using cached transcript");
   } else {
     await stage("audio", 0.05);
     const wav = join(dir, "audio.wav");
-    await extractAudio(cfg.ffmpeg, project.sourcePath, wav);
+    await extractAudio(cfg.ffmpeg, source, wav);
     await stage("transcribe", 0.08, `Transcribing with ${provider.name} (${settings.model})`);
     let last = 0;
     transcript = await provider.transcribe(wav, {

@@ -1,6 +1,6 @@
 "use client";
 
-import { DURATION_PRESETS, type YouTubeMeta } from "@oneclip/core/browser";
+import { DURATION_PRESETS, extractYouTubeId, type YouTubeMeta } from "@oneclip/core/browser";
 import { Link2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -22,20 +22,23 @@ const PLANNERS = [
 
 export function NewProject() {
   const router = useRouter();
-  const [url, setUrl] = useState("");
+  const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
-  const [path, setPath] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto" });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
+  const clean = source.trim().replace(/^"|"$/g, "");
+  const isLink = /^https?:\/\//i.test(clean);
+
+  /** YouTube links get a title/thumbnail preview; other links show theirs once downloaded. */
   async function lookup() {
-    if (!url.trim()) return setMeta(undefined);
+    if (!extractYouTubeId(clean)) return setMeta(undefined);
     setBusy("meta");
     setError(undefined);
     try {
-      setMeta(await api<YouTubeMeta>("/api/youtube", { method: "POST", body: JSON.stringify({ url }) }));
+      setMeta(await api<YouTubeMeta>("/api/youtube", { method: "POST", body: JSON.stringify({ url: clean }) }));
     } catch (e) {
       setMeta(undefined);
       setError((e as Error).message);
@@ -51,7 +54,7 @@ export function NewProject() {
     try {
       const { projectId } = await api<{ projectId: string }>("/api/projects", {
         method: "POST",
-        body: JSON.stringify({ sourcePath: path.trim().replace(/^"|"$/g, ""), authorized, youtubeUrl: url, settings: s }),
+        body: JSON.stringify({ sourcePath: clean, authorized, youtubeUrl: extractYouTubeId(clean) ? clean : "", settings: s }),
       });
       router.push(`/projects/${projectId}`);
     } catch (e) {
@@ -62,10 +65,24 @@ export function NewProject() {
 
   return (
     <form onSubmit={submit} className="mt-6 grid gap-5 rounded-lg border border-line bg-panel p-5">
-      <Field label="YouTube link (optional)" hint="Used for title and thumbnail only. OneClip never downloads from YouTube.">
+      <Field
+        label="Video or podcast"
+        hint="Paste a link from YouTube or any video, audio or podcast site, or the full path to a video or audio file on this computer (on Windows: Shift + right-click the file → Copy as path)."
+      >
         <div className="flex gap-2">
-          <Input value={url} onChange={(e) => setUrl(e.target.value)} onBlur={lookup} placeholder="https://www.youtube.com/watch?v=…" inputMode="url" />
-          <Button type="button" onClick={lookup} loading={busy === "meta"} aria-label="Look up video">
+          <Input
+            required
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value);
+              setMeta(undefined);
+            }}
+            onBlur={lookup}
+            placeholder="https://youtu.be/…  or  C:\Videos\episode-12.mp4"
+            spellCheck={false}
+            className="font-mono"
+          />
+          <Button type="button" onClick={lookup} loading={busy === "meta"} disabled={!extractYouTubeId(clean)} aria-label="Preview video">
             <Link2 aria-hidden />
           </Button>
         </div>
@@ -80,11 +97,9 @@ export function NewProject() {
             <p className="truncate text-muted">{meta.author}</p>
           </div>
         </div>
+      ) : isLink ? (
+        <p className="-mt-2 text-xs text-muted">OneClip downloads this link when the analysis starts.</p>
       ) : null}
-
-      <Field label="Video file on this computer" hint="Full path to an MP4, MOV, MKV or WebM. On Windows, Shift + right-click the file → Copy as path.">
-        <Input required value={path} onChange={(e) => setPath(e.target.value)} placeholder="C:\Videos\episode-12.mp4" spellCheck={false} className="font-mono" />
-      </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Clip length">
@@ -110,7 +125,7 @@ export function NewProject() {
 
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-muted">Ranking costs about 1,400 Jev tokens per candidate on your TypeSafe account. Re-runs use the cache.</p>
-        <Button type="submit" variant="primary" loading={busy === "go"} disabled={!authorized || !path.trim()}>
+        <Button type="submit" variant="primary" loading={busy === "go"} disabled={!authorized || !clean}>
           <Play aria-hidden />
           Find clips
         </Button>
