@@ -58,6 +58,13 @@ export async function downloadSource(cfg: Config, url: string, dir: string, onPr
     "--no-playlist",
     "--newline",
     "--no-color",
+    // --print implies --quiet, which would silence the [download] lines the progress bar reads.
+    "--progress",
+    // A live stream never ends; a stalled connection should fail, not hang for hours.
+    "--match-filters",
+    "!is_live",
+    "--socket-timeout",
+    "30",
     "--js-runtimes",
     `node:${process.execPath}`,
     "-f",
@@ -78,18 +85,23 @@ export async function downloadSource(cfg: Config, url: string, dir: string, onPr
   if (cfg.ffmpeg !== "ffmpeg") args.push("--ffmpeg-location", cfg.ffmpeg);
   args.push("--", url.trim());
   let buf = "";
+  let lastPct = -1;
   const r = await runProcess(y.cmd, args, {
     timeoutMs: 4 * 60 * 60_000,
     onStdout: (d) => {
       buf = (buf + d).slice(-400);
       const m = [...buf.matchAll(/\[download\]\s+([\d.]+)%/g)].pop();
-      if (m) onProgress?.(Number(m[1]) / 100);
+      const pct = m ? Math.floor(Number(m[1])) : -1;
+      if (pct > lastPct) {
+        lastPct = pct; // one database write per percent, not per output line
+        onProgress?.(pct / 100);
+      }
     },
   }).catch((e: ProcError) => {
     throw new Error(e.message);
   });
-  const path = r.stdout.split(/\r?\n/).map((l) => l.trim()).reverse().find((l) => l && !l.startsWith("[") && existsSync(l));
-  if (r.code !== 0 || !path || !existsSync(path)) {
+  const path = findDownloaded(r.stdout, dir);
+  if (r.code !== 0 || !path) {
     const why = r.stderr.split(/\r?\n/).filter((l) => /ERROR/.test(l)).pop() ?? r.stderr.trim().split(/\r?\n/).pop() ?? "";
     throw new Error(`Couldn't download that link: ${why.replace(/^ERROR:\s*/, "").slice(0, 300)}`);
   }
@@ -109,6 +121,17 @@ export async function downloadSource(cfg: Config, url: string, dir: string, onPr
     id: String(info.id ?? ""),
     cover: cover ? join(dir, cover) : undefined,
   };
+}
+
+/**
+ * The downloaded file: the path yt-dlp printed, or (when a non-ASCII folder name
+ * was mangled by the console code page) the `source.<ext>` media file in `dir`.
+ */
+export function findDownloaded(stdout: string, dir: string): string | undefined {
+  const printed = stdout.split(/\r?\n/).map((l) => l.trim()).reverse().find((l) => l && !l.startsWith("[") && existsSync(l));
+  if (printed) return printed;
+  const f = readdirSync(dir).find((n) => /^source\.[a-z0-9]+$/i.test(n) && !/\.(json|jpe?g|png|webp|part|ytdl)$/i.test(n));
+  return f ? join(dir, f) : undefined;
 }
 
 /** A real video stream, not an MP3/M4A's embedded cover art. */
