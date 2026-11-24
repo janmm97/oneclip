@@ -11,7 +11,7 @@ This guide takes you from a brand-new computer to your first finished clips. You
 | **Accounts** | A free [One](https://withone.ai) account and a TypeSafe account (you create it while connecting, in Step 4). |
 | **Cost** | OneClip is free. Scoring clips uses TypeSafe tokens (TypeSafe's unit of usage): about 34,000 per video with the default settings. Check your TypeSafe plan for what that costs you. Claude Code is optional and needs a paid Claude plan. |
 
-**Contents:** [1. Open a terminal](#step-1-open-a-terminal) · [2. Install the tools](#step-2-install-the-tools) · [3. Download OneClip](#step-3-download-oneclip) · [4. Connect One and TypeSafe](#step-4-connect-one-and-typesafe) · [5. Check and start](#step-5-check-everything-and-start-oneclip) · [6. Make your first clips](#step-6-make-your-first-clips) · [Every day after that](#every-day-after-that) · [Optional: let Claude Code do it for you](#optional-let-claude-code-set-it-up-for-you) · [If something goes wrong](#if-something-goes-wrong) · [Words used in this guide](#words-used-in-this-guide)
+**Contents:** [1. Open a terminal](#step-1-open-a-terminal) · [2. Install the tools](#step-2-install-the-tools) · [3. Download OneClip](#step-3-download-oneclip) · [4. Connect One and TypeSafe](#step-4-connect-one-and-typesafe) · [5. Check and start](#step-5-check-everything-and-start-oneclip) · [6. Make your first clips](#step-6-make-your-first-clips) · [Every day after that](#every-day-after-that) · [Optional: let Claude Code set it up for you](#optional-let-claude-code-set-it-up-for-you) · [If something goes wrong](#if-something-goes-wrong) · [Words used in this guide](#words-used-in-this-guide)
 
 ---
 
@@ -43,7 +43,7 @@ OneClip needs four free programs. You install them once.
 | **Git** | Downloads OneClip and its updates |
 | **Node.js** | Runs OneClip |
 | **FFmpeg** | Cuts and renders the video |
-| **Python** (recommended) | Faster, better transcripts. Without it OneClip still works, a bit more slowly |
+| **Python** | Downloads videos from YouTube and other links, and gives faster transcripts. Without it, only video files already on your computer work |
 
 **Windows:** paste these four commands into the terminal, one at a time. Each one asks Windows to install a program. If a window asks "Do you want to allow this app to make changes?", click **Yes**. The first time, winget may ask you to accept its terms: type `Y` and press **Enter**.
 
@@ -65,7 +65,7 @@ FFmpeg:
 winget install --id Gyan.FFmpeg -e
 ```
 
-Python (recommended):
+Python (needed for YouTube and other links):
 
 ```powershell
 winget install --id Python.Python.3.12 -e
@@ -74,7 +74,7 @@ winget install --id Python.Python.3.12 -e
 **Mac:** install [Homebrew](https://brew.sh) first: copy the one command on its home page, paste it into Terminal and press **Enter**. When it asks for your Mac password, type it and press Enter. Nothing appears as you type; that's normal. Then:
 
 ```bash
-brew install git node ffmpeg python@3.12
+brew install git node ffmpeg python@3.12 yt-dlp
 ```
 
 **Now close the terminal and open a new one** (Step 1 again). New programs only show up in a fresh window.
@@ -194,7 +194,7 @@ pnpm run setup
 pnpm run doctor
 ```
 
-✅ Every line starts with a green tick and the last line says **Ready to clip.**
+✅ Every line starts with a green tick and the last line says **Ready to clip.** (Lines marked optional can show a dot instead of a tick. That's fine.)
 
 ![What a healthy check-up looks like: eleven green ticks and "Ready to clip."](images/guide/05-doctor.png)
 
@@ -239,11 +239,11 @@ The **Setup** page in the app shows the same checks as `pnpm run doctor`:
 2. **Quick preview** makes a fast, low-quality version to check.
 3. **Render 1080p** makes the final vertical video. **Render all** does every clip. The first render is slower: it downloads a small helper (~131 MB) once.
 
-**6d. Get your files.** Click **Exports** to play and download every finished clip.
+**6d. Get your files.** Click **Exports** (top right of the results page) to play and download every finished clip.
 
 ![The Exports page with finished clips and their download buttons](images/guide/06-exports.png)
 
-Your clips are also saved automatically in the **`clips`** folder inside your `oneclip` folder: one folder per video, named after the video, with the clips numbered in rank order (`clips/<video name>-<short code>/01-<clip title>.mp4`). On Windows you can open it by pasting `explorer clips` in the terminal (Mac: `open clips`).
+Your finished clips (the **Render 1080p** ones, not the quick previews) are also saved automatically in the **`clips`** folder inside your `oneclip` folder: one folder per video, named after the video in lowercase with dashes plus a short code, with the clips numbered in rank order (for example `clips/my-video-f29150aa/01-they-buy-tools-before.mp4`). On Windows you can open it by pasting `explorer clips` in the terminal (Mac: `open clips`).
 
 🎉 That's it. You've made your first clips.
 
@@ -259,7 +259,7 @@ Your clips are also saved automatically in the **`clips`** folder inside your `o
 
 ## Optional: let Claude Code set it up for you
 
-**Claude Code** is an AI assistant from Anthropic that works in your terminal. You type what you want in plain English, it suggests commands, and it **asks your permission before running each one**. OneClip doesn't need it, but it can walk you through Steps 2–5 and fix problems for you. OneClip can also use it to plan edits.
+**Claude Code** is an AI assistant from Anthropic that works in your terminal. You type what you want in plain English, it suggests commands, and it **asks your permission before running each one**. OneClip doesn't need it, but it can walk you through Steps 2–5 and fix problems for you. OneClip can also use it to plan edits (see the note at the end of this section).
 
 You need a paid Claude plan (Pro, Max, Team or Enterprise) or pay-as-you-go credit on an Anthropic Console account. The free claude.ai plan doesn't include Claude Code.
 
@@ -306,7 +306,7 @@ pnpm run doctor and tell me if anything is not green.
 
 When `pnpm run doctor` says **Ready to clip.**, type `/exit` to leave Claude Code and carry on from [Step 5c](#step-5-check-everything-and-start-oneclip).
 
-> **Using Claude Code as OneClip's edit planner.** If Claude Code is installed and signed in, OneClip can use it to plan each clip's edit: pick **Claude Code** under **Edit planner** on the New clip screen. It runs with every tool turned off, so it can only answer, not change anything. Clip text then goes to Claude as well as to Jev. Only use your own Claude account: Anthropic's terms don't allow sharing a Claude login with someone else.
+> **Using Claude Code as OneClip's edit planner.** Once Claude Code is installed, the default **Auto** setting under **Edit planner** on the New clip screen can pick it (after OpenRouter, if you connected that), and you can also choose **Claude Code** yourself. It runs with every tool turned off, so it can only answer, not change anything. Clip text then goes to Claude as well as to Jev. To keep that step on your computer, choose **Template (no agent)**. Only use your own Claude account: Anthropic's terms don't allow sharing a Claude login with someone else.
 
 ## If something goes wrong
 
@@ -317,9 +317,10 @@ When `pnpm run doctor` says **Ready to clip.**, type `/exit` to leave Claude Cod
 | `node` shows a version below 22.13 | Run `winget upgrade --id OpenJS.NodeJS.LTS -e` (Mac: `brew upgrade node`), then open a new terminal |
 | `pnpm install` says `EPERM` or "operation not permitted" | Close other programs that may be using the folder (a code editor, OneDrive syncing), then run it again |
 | `pnpm setup` did something strange | Use `pnpm run setup`. The same for `pnpm run doctor` |
-| Doctor: **One CLI not found** | `npm install -g @withone/cli`, then open a new terminal |
+| Doctor: **One CLI installed** is red | `npm install -g @withone/cli`, then open a new terminal |
 | Doctor: **Signed in to One** is red | Run `one init` again and finish signing in |
 | Doctor: **TypeSafe connected** is red | Run `one add typesafe` and approve it in the browser. Check with `one list` |
+| Doctor: **Links (yt-dlp)** is red, or a link fails with "yt-dlp is needed" | Install Python (Step 2) and open a new terminal, then run `pnpm run setup`. On Windows, if typing `python` opens the Microsoft Store, install Python again with the command in Step 2 and open a new terminal. Local video files work without it |
 | Doctor: **Transcription engine** says faster-whisper is missing | Nothing to do: OneClip uses its built-in transcriber instead. For better transcripts, install Python 3.12 (Step 2) and run `pnpm run setup` again |
 | The browser says "This site can't be reached" | OneClip isn't running. Go to the terminal, `cd ~/oneclip`, `pnpm dev`, and wait for `Ready` |
 | "No complete thoughts fit this clip length" | Pick a shorter **Clip length**: the video doesn't have enough complete sentences that fit the length you chose |
