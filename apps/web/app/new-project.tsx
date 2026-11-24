@@ -1,6 +1,6 @@
 "use client";
 
-import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, type YouTubeMeta } from "@oneclip/core/browser";
+import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, RATIO_LABELS, RATIOS, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
 import { Link2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -31,7 +31,7 @@ export function NewProject() {
   const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
   const [authorized, setAuthorized] = useState(false);
-  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto" });
+  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto", ratios: ["9:16"] as Ratio[] });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
@@ -127,6 +127,25 @@ export function NewProject() {
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
       </div>
+
+      <fieldset className="grid gap-2">
+        <legend className="text-sm font-medium">Frame ratios</legend>
+        <p className="text-xs text-muted">Each clip renders once per ratio you tick. Pick 9:16 for phones and 16:9 for desktop.</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {RATIOS.map((r) => (
+            <label key={r} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={s.ratios.includes(r)}
+                disabled={s.ratios.length === 1 && s.ratios.includes(r)}
+                onChange={(e) => setS({ ...s, ratios: e.target.checked ? [...s.ratios, r] : s.ratios.filter((x) => x !== r) })}
+                className="size-4 accent-(--color-tally)"
+              />
+              {RATIO_LABELS[r]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} className="mt-0.5 size-4 accent-(--color-tally)" />

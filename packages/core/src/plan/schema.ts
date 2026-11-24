@@ -45,8 +45,8 @@ export const EditPlanSchema = z.object({
   sourceStart: z.number().nonnegative(),
   sourceEnd: z.number().positive(),
   output: z.object({
-    width: z.number().int().min(360).max(2160),
-    height: z.number().int().min(640).max(3840),
+    width: z.number().int().min(270).max(3840),
+    height: z.number().int().min(270).max(3840),
     fps: z.union([z.literal(24), z.literal(25), z.literal(30), z.literal(60)]),
   }),
   editing: z.object({
@@ -74,3 +74,25 @@ export const OUTPUT_PRESETS = {
   final: { width: 1080, height: 1920, fps: 30 as const },
   preview: { width: 540, height: 960, fps: 30 as const },
 };
+
+/** Frame shapes: 9:16 Reels/Shorts/TikTok, 1:1 and 4:5 feed posts, 16:9 YouTube/desktop, 4:3 classic. */
+export const RATIOS = ["9:16", "1:1", "4:5", "16:9", "4:3"] as const;
+export type Ratio = (typeof RATIOS)[number];
+export const RATIO_LABELS: Record<Ratio, string> = {
+  "9:16": "9:16 vertical (Reels, Shorts, TikTok)",
+  "1:1": "1:1 square (feed)",
+  "4:5": "4:5 portrait (Instagram feed)",
+  "16:9": "16:9 landscape (YouTube, desktop)",
+  "4:3": "4:3 classic",
+};
+
+/** Output size for a ratio: the short side is 1080 for final, 540 for preview (even numbers for H.264). */
+export function outputFor(quality: "final" | "preview", ratio: Ratio = "9:16") {
+  const [a, b] = ratio.split(":").map(Number) as [number, number];
+  const short = quality === "final" ? 1080 : 540;
+  const long = Math.round((short * Math.max(a, b)) / Math.min(a, b) / 2) * 2;
+  return { width: a >= b ? long : short, height: a >= b ? short : long, fps: 30 as const };
+}
+
+/** "16:9" → "16x9", safe for file names. */
+export const ratioSlug = (r: Ratio) => r.replace(":", "x");

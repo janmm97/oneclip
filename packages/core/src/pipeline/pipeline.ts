@@ -15,7 +15,7 @@ import { downloadSource, ensureAudio, ensureVideo, isRemoteSource } from "../med
 import type { JevResponse } from "../one/client.ts";
 import { compilePlan } from "../plan/compile.ts";
 import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
-import { EditPlanSchema, OUTPUT_PRESETS, type EditPlan } from "../plan/schema.ts";
+import { EditPlanSchema, outputFor, RATIOS, ratioSlug, type EditPlan, type Ratio } from "../plan/schema.ts";
 import { redact } from "../proc.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
@@ -332,15 +332,18 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   if (!project || !clip?.plan) throw new Error("Clip or plan not found");
   const settings = ProjectSettingsSchema.parse(project.settings);
   const quality = job.quality === "preview" ? "preview" : "final";
-  const plan = EditPlanSchema.parse({ ...(clip.plan as EditPlan), output: OUTPUT_PRESETS[quality] });
+  const ratio: Ratio = (RATIOS as readonly string[]).includes(job.ratio ?? "") ? (job.ratio as Ratio) : "9:16";
+  const plan = fitToFrame(EditPlanSchema.parse({ ...(clip.plan as EditPlan), output: outputFor(quality, ratio) }), project.sourceInfo as MediaInfo | null);
   const dir = join(projectDir(cfg, project.id), "renders");
-  const slug = `${String(clip.rank).padStart(2, "0")}-${quality}`;
+  // 9:16 keeps the old names; other ratios get a suffix so they sit side by side.
+  const tag = ratio === "9:16" ? "" : `-${ratioSlug(ratio)}`;
+  const slug = `${String(clip.rank).padStart(2, "0")}-${quality}${tag}`;
   const workDir = join(projectDir(cfg, project.id), "work", slug);
   mkdirSync(workDir, { recursive: true });
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);
-  const outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}.mp4` : `clip-${slug}.mp4`);
+  const outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}${tag}.mp4` : `clip-${slug}.mp4`);
   const thumbPath = join(dir, `clip-${slug}.jpg`);
   mkdirSync(dir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
@@ -370,6 +373,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
         projectId: project.id,
         clipId: clip.id,
         quality,
+        ratio,
         renderer: renderer.name,
         path: outPath,
         thumbPath,
@@ -388,6 +392,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
     projectId: project.id,
     clipId: clip.id,
     quality,
+    ratio,
     renderer: order.map((r) => r.name).join("→") || "none",
     path: outPath,
     status: "failed",
@@ -396,15 +401,33 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   throw new Error(problems.join(" | ") || "No renderer available");
 }
 
-/** Queue renders for every clip in a project (or one clip). Analysis is never re-run. */
-export async function queueRenders(db: Db, projectId: string, quality: "final" | "preview", clipId?: string): Promise<string[]> {
+/**
+ * A plan made for one frame shape, fitted to another: when the frame is much
+ * wider than the source (a phone video in 16:9), cropping would throw most of
+ * the picture away, so the clip sits on a blurred copy of itself instead.
+ */
+export function fitToFrame(plan: EditPlan, source: Pick<MediaInfo, "width" | "height"> | null): EditPlan {
+  if (!source?.width || !source.height) return plan;
+  const frame = plan.output.width / plan.output.height;
+  const src = source.width / source.height;
+  return frame > src * 1.3 ? { ...plan, editing: { ...plan.editing, layout: "blur-background" } } : plan;
+}
+
+/** Queue renders for every clip in a project (or one clip), once per ratio (the project's ratios when not given). Analysis is never re-run. */
+export async function queueRenders(db: Db, projectId: string, quality: "final" | "preview", clipId?: string, ratios?: Ratio[]): Promise<string[]> {
+  if (!ratios?.length) {
+    const p = await db.select({ settings: projects.settings }).from(projects).where(eq(projects.id, projectId)).get();
+    ratios = p ? ProjectSettingsSchema.parse(p.settings).ratios : ["9:16"];
+  }
+  // A preview is for judging the edit: one ratio is enough.
+  if (quality === "preview") ratios = ratios.slice(0, 1);
   const rows = await db
     .select({ id: clips.id })
     .from(clips)
     .where(clipId ? and(eq(clips.projectId, projectId), eq(clips.id, clipId)) : eq(clips.projectId, projectId))
     .orderBy(asc(clips.rank));
   const ids: string[] = [];
-  for (const r of rows) ids.push(await enqueue(db, { projectId, kind: "render", clipId: r.id, quality }));
+  for (const r of rows) for (const ratio of ratios) ids.push(await enqueue(db, { projectId, kind: "render", clipId: r.id, quality, ratio }));
   return ids;
 }
 

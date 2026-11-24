@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CONTENT_TYPE_KEYS } from "../discovery/content-types.ts";
 import { DURATION_PRESETS } from "../discovery/segment.ts";
-import { CAPTION_PRESETS, TEMPLATES } from "../plan/schema.ts";
+import { CAPTION_PRESETS, RATIOS, TEMPLATES } from "../plan/schema.ts";
 import { MODEL_SIZES } from "../transcription/types.ts";
 
 export const CAPTION_MODES = ["english", "original", "off"] as const;
@@ -21,6 +21,8 @@ export const ProjectSettingsSchema = z.object({
   captions: z.enum(CAPTION_MODES).default("english"),
   /** What kind of source this is (music video, podcast, gameplay…). auto: detected from the page and the file. */
   content: z.enum(["auto", ...CONTENT_TYPE_KEYS]).default("auto"),
+  /** Frame shapes to render each clip in (one file per ratio). */
+  ratios: z.array(z.enum(RATIOS)).min(1).max(RATIOS.length).default(["9:16"]).transform((r) => [...new Set(r)]),
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
