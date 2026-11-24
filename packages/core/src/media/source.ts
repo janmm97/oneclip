@@ -101,10 +101,7 @@ export async function downloadSource(cfg: Config, url: string, dir: string, onPr
     throw new Error(e.message);
   });
   const path = findDownloaded(r.stdout, dir);
-  if (r.code !== 0 || !path) {
-    const why = r.stderr.split(/\r?\n/).filter((l) => /ERROR/.test(l)).pop() ?? r.stderr.trim().split(/\r?\n/).pop() ?? "";
-    throw new Error(`Couldn't download that link: ${why.replace(/^ERROR:\s*/, "").slice(0, 300)}`);
-  }
+  if (r.code !== 0 || !path) throw new Error(downloadFailure(r.stdout, r.stderr));
   let info: { title?: string; uploader?: string; channel?: string; webpage_url?: string; extractor_key?: string; id?: string } = {};
   try {
     info = JSON.parse(readFileSync(join(dir, "source.info.json"), "utf8"));
@@ -121,6 +118,17 @@ export async function downloadSource(cfg: Config, url: string, dir: string, onPr
     id: String(info.id ?? ""),
     cover: cover ? join(dir, cover) : undefined,
   };
+}
+
+/**
+ * Why yt-dlp left no file. A live stream skipped by `--match-filters !is_live`
+ * exits 0 and says so on stdout, so stderr alone would give an empty reason.
+ */
+export function downloadFailure(stdout: string, stderr: string): string {
+  if (/does not pass filter[^\n]*is_live/.test(stdout)) return "Live streams can't be clipped until they've ended. Try the link again once the stream is over.";
+  const lines = (s: string) => s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const why = lines(stderr).filter((l) => /ERROR/.test(l)).pop() ?? lines(stderr).pop() ?? lines(stdout).filter((l) => !/^\[download\]\s+[\d.]+%/.test(l)).pop() ?? "yt-dlp didn't save a file.";
+  return `Couldn't download that link: ${why.replace(/^ERROR:\s*/, "").slice(0, 300)}`;
 }
 
 /**

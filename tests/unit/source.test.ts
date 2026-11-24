@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ALLOWED_EXTENSIONS, findDownloaded, isRemoteSource, openDb, parseProbe, schema } from "@oneclip/core";
+import { ALLOWED_EXTENSIONS, downloadFailure, findDownloaded, isRemoteSource, openDb, parseProbe, schema } from "@oneclip/core";
 
 describe("isRemoteSource", () => {
   it("accepts http(s) links from any site", () => {
@@ -50,6 +50,18 @@ describe("db migration", () => {
     await db.insert(schema.projects).values({ id: "p", title: "t", sourcePath: "", sourceUrl: "https://youtu.be/x", settings: {} });
     const [row] = await db.select().from(schema.projects).all();
     expect(row?.sourceUrl).toBe("https://youtu.be/x");
+  });
+});
+
+describe("downloadFailure", () => {
+  it("explains a skipped live stream instead of an empty reason", () => {
+    const out = "[youtube] Extracting URL: https://youtu.be/x\n[download] Some stream does not pass filter (!is_live), skipping ..\n";
+    expect(downloadFailure(out, "")).toMatch(/Live streams can't be clipped/);
+  });
+  it("prefers the ERROR line, then any stderr, then stdout", () => {
+    expect(downloadFailure("", "WARNING: a\nERROR: [generic] Unsupported URL: https://x\n")).toBe("Couldn't download that link: [generic] Unsupported URL: https://x");
+    expect(downloadFailure("", "something broke\n")).toBe("Couldn't download that link: something broke");
+    expect(downloadFailure("[download]  50.0% of 1MiB\n", "")).toBe("Couldn't download that link: yt-dlp didn't save a file.");
   });
 });
 
