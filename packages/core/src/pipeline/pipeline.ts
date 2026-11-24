@@ -6,10 +6,11 @@ import type { Config } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { clips, jevCache, projects, renders, transcripts } from "../db/schema.ts";
 import { findCandidates, type ClipCandidate } from "../discovery/segment.ts";
+import { analyzeSignals, attachMedia, classifyMedia, findMoments, mixCandidates } from "../discovery/signals.ts";
 import type { HookEvaluator, JevCache } from "../jev/evaluator.ts";
 import { selectTop, type HookEvaluation } from "../jev/rank.ts";
 import { ALLOWED_EXTENSIONS, extractAudio, probe, thumbnail, verifyRender, type MediaInfo } from "../media/ffmpeg.ts";
-import { downloadSource, ensureVideo, isRemoteSource } from "../media/source.ts";
+import { downloadSource, ensureAudio, ensureVideo, isRemoteSource } from "../media/source.ts";
 import type { JevResponse } from "../one/client.ts";
 import { compilePlan } from "../plan/compile.ts";
 import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
@@ -135,14 +136,21 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   if (video !== source) await db.update(projects).set({ sourcePath: (source = video) }).where(eq(projects.id, project.id));
 
   await stage("probe", 0.02);
-  const info = await probe(cfg.ffprobe, source);
-  if (!info.hasAudio) throw new Error("This video has no audio track, so there's nothing to transcribe.");
+  let info = await probe(cfg.ffprobe, source);
+  // Silent videos get a silent track; there are no words to find, only moments.
+  const silent = !info.hasAudio;
+  if (silent) {
+    await db.update(projects).set({ sourcePath: (source = await ensureAudio(cfg, source, dir, false)) }).where(eq(projects.id, project.id));
+    info = await probe(cfg.ffprobe, source);
+  }
   await db.update(projects).set({ sourceInfo: info }).where(eq(projects.id, project.id));
 
   const provider = await deps.transcriber(settings);
   const key = `${fileFingerprint(source)}:${provider.name}:${settings.model}:${settings.language ?? "auto"}`;
   let transcript = (await db.select().from(transcripts).where(eq(transcripts.cacheKey, key)).get())?.data as Transcript | undefined;
-  if (transcript) {
+  if (silent) {
+    transcript = { engine: "none", model: "silent", language: settings.language ?? "", duration: info.duration, words: [] };
+  } else if (transcript) {
     await stage("transcribe", 0.5, "Using cached transcript");
   } else {
     await stage("audio", 0.05);
@@ -163,13 +171,19 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     await db.insert(transcripts).values({ cacheKey: key, engine: transcript.engine, model: transcript.model, data: transcript }).onConflictDoNothing();
   }
   await db.update(projects).set({ transcriber: `${transcript.engine} ${transcript.model}` }).where(eq(projects.id, project.id));
-  if (transcript.words.length < 20) throw new Error("Too little speech was found to make clips.");
 
-  await stage("candidates", 0.52);
-  const candidates = findCandidates(project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id, transcript.words, settings.preset, {
-    maxCandidates: settings.maxCandidates,
-  });
-  if (!candidates.length) throw new Error("No complete thoughts of the chosen length were found. Try another duration preset.");
+  await stage("signals", 0.5);
+  const signals = await analyzeSignals(cfg.ffmpeg, source);
+  const kind = classifyMedia(signals, transcript.words);
+
+  await stage("candidates", 0.52, `Finding hooks and moments (${kind})`);
+  const videoId = project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id;
+  const max = settings.maxCandidates;
+  // Sentences only when there is real speech; moments always, from sound and picture.
+  const sentences = transcript.words.length >= 20 ? findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max }) : [];
+  const moments = findMoments(videoId, signals, transcript.words, settings.preset, kind, max, info.duration);
+  const candidates = mixCandidates(sentences, moments, kind, max).map((c) => attachMedia(c, signals, kind));
+  if (!candidates.length) throw new Error("No moments of the chosen length were found. Try a shorter duration preset.");
 
   await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev`);
   const evaluator = deps.evaluator(dbJevCache(db));
@@ -219,6 +233,8 @@ export async function planClip(
   try {
     const draft = await planner.plan(input);
     if (style.template) draft.template = style.template;
+    // Moments are a stretch of sound and picture: cutting the quiet parts would break the beat.
+    if (candidate.kind === "moment") Object.assign(draft, { removeSilences: false, keep: [] });
     if (style.captionPreset) draft.captionPreset = style.captionPreset;
     return { plan: compilePlan(candidate, transcript.words, draft, planner.name), planError: null };
   } catch (e) {

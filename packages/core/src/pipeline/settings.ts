@@ -17,7 +17,7 @@ export const ProjectSettingsSchema = z.object({
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
-export const STAGES = ["download", "prepare", "probe", "audio", "transcribe", "candidates", "jev", "plan", "render"] as const;
+export const STAGES = ["download", "prepare", "probe", "audio", "transcribe", "signals", "candidates", "jev", "plan", "render"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -26,7 +26,8 @@ export const STAGE_LABELS: Record<Stage, string> = {
   probe: "Reading video",
   audio: "Extracting audio",
   transcribe: "Transcribing",
-  candidates: "Finding complete thoughts",
+  signals: "Measuring sound and picture",
+  candidates: "Finding hooks and moments",
   jev: "Ranking hooks with Jev",
   plan: "Planning edits",
   render: "Rendering",

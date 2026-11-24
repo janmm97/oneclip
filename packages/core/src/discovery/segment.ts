@@ -1,4 +1,5 @@
 import type { Word } from "../transcription/types.ts";
+import type { CandidateMedia } from "./signals.ts";
 
 export interface ClipCandidate {
   id: string;
@@ -10,6 +11,9 @@ export interface ClipCandidate {
   precedingContext: string;
   followingContext: string;
   duration: number;
+  /** "moment": picked from sound and picture, not sentences. Never silence-trimmed. */
+  kind?: "speech" | "moment";
+  media?: CandidateMedia;
 }
 
 export const DURATION_PRESETS = {

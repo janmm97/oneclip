@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   claimNext,
+  type ClipCandidate,
   config,
   createProject,
   enqueue,
@@ -187,5 +188,52 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     expect(p?.status).toBe("ready");
     expect(p?.sourcePath).toMatch(/source-video\.mp4$/);
     expect(p?.sourceInfo).toMatchObject({ width: 1080, height: 1080, hasAudio: true });
+  }, 180_000);
+
+  it("finds visual moments in a silent video, without transcribing", async () => {
+    const mute = join(dir, "broll.mp4");
+    const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=30:duration=40", "-c:v", "libx264", "-preset", "ultrafast", mute], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+    let transcribed = false;
+    const d: PipelineDeps = { ...deps, transcriber: async () => ({ ...mockTranscriber, transcribe: async () => ((transcribed = true), syntheticTranscript()) }) };
+    const { projectId: id } = await createProject(d, { sourcePath: mute, authorized: true, settings: { preset: "quick", topN: 1, renderer: "ffmpeg" } });
+    await runJob(d, (await claimNext(d.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
+    const [p] = await d.db.select().from(schema.projects).where(eq(schema.projects.id, id)).all();
+    expect(p?.error ?? null).toBeNull();
+    expect(p?.status).toBe("ready");
+    expect(p?.sourceInfo).toMatchObject({ hasAudio: true });
+    expect(transcribed).toBe(false);
+    const [c] = await d.db.select().from(schema.clips).where(eq(schema.clips.projectId, id)).all();
+    expect(c?.candidate).toMatchObject({ kind: "moment", media: { kind: "visual" } });
+    expect(c?.plan).toMatchObject({ editing: { removeSilences: false } });
+    expect(one.calls.at(-1)?.state).toMatchObject({ source_kind: "visual", picked_by: "sound and picture" });
+    // A moment with no words renders like any clip (no captions, nothing trimmed).
+    await queueRenders(d.db, id, "preview", c?.id);
+    await runJob(d, (await claimNext(d.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
+    const [out] = await d.db.select().from(schema.renders).where(eq(schema.renders.clipId, c?.id as string)).all();
+    expect(out?.error ?? null).toBeNull();
+    expect(out?.status).toBe("done");
+    expect(out?.verify).toMatchObject({ width: 540, height: 960 });
+  }, 240_000);
+
+  it("finds sound moments in music with no lyrics", async () => {
+    const song = join(dir, "song.mp4");
+    // Quiet for 15 s, then loud: the jump is the hook.
+    const r = spawnSync(
+      "ffmpeg",
+      ["-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=640x360:r=30:d=45", "-f", "lavfi", "-i", "sine=frequency=220:duration=45,volume='if(lt(t,15),0.05,1)':eval=frame", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", song],
+      { encoding: "utf8" },
+    );
+    if (r.status !== 0) throw new Error(r.stderr);
+    const instrumental: TranscriptionProvider = { ...mockTranscriber, transcribe: async () => ({ ...syntheticTranscript(), words: [] }) };
+    const d: PipelineDeps = { ...deps, transcriber: async () => instrumental };
+    const { projectId: id } = await createProject(d, { sourcePath: song, authorized: true, settings: { preset: "quick", topN: 3, renderer: "ffmpeg" } });
+    await runJob(d, (await claimNext(d.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
+    const [p] = await d.db.select().from(schema.projects).where(eq(schema.projects.id, id)).all();
+    expect(p?.error ?? null).toBeNull();
+    const clips = (await d.db.select().from(schema.clips).where(eq(schema.clips.projectId, id)).all()).map((c) => c.candidate as ClipCandidate);
+    expect(clips.length).toBeGreaterThan(0);
+    expect(clips.every((c) => c.kind === "moment" && c.media?.kind === "music")).toBe(true);
+    expect(clips.some((c) => Math.abs(c.start - 15) <= 1)).toBe(true);
   }, 180_000);
 });
