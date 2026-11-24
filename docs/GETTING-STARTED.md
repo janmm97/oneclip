@@ -135,6 +135,8 @@ OneClip asks **Jev** (an AI from TypeSafe) which moments of your video make the 
 
 ![How it fits together: OneClip on your computer asks One, One calls TypeSafe's Jev with your connection, and the scores come back. Your video file stays on your computer; only clip text and sound/picture measurements are sent](images/guide/04-how-one-works.png)
 
+If you connect OpenRouter (Step 4d) or have Claude Code or OpenCode installed, the default **Auto** edit planner also sends each clip's text to that AI to plan the edit. To keep that step on your computer, choose **Template (no agent)** under **Edit planner** on the New clip screen.
+
 **4a. Install One** (still in the `oneclip` folder):
 
 ```bash
