@@ -1,7 +1,8 @@
 """OneClip transcription worker: faster-whisper, word timestamps, JSON on stdout.
 
 Usage: python transcribe.py --input audio.wav --model small [--device auto|cpu|cuda] [--language en] [--task transcribe|translate]
-Progress lines go to stderr as "PROGRESS <0..1>". Everything runs locally.
+Progress lines go to stderr as "PROGRESS <0..1>", each segment's words as
+"WORDS <json array>" as soon as they are ready. Everything runs locally.
 """
 
 import argparse
@@ -38,8 +39,11 @@ def main() -> int:
     segments, info = model.transcribe(args.input, word_timestamps=True, vad_filter=True, language=args.language, task=args.task)
     words = []
     for seg in segments:
-        for w in seg.words or []:
-            words.append({"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3), "probability": round(w.probability, 3)})
+        new = [{"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3), "probability": round(w.probability, 3)} for w in seg.words or []]
+        words.extend(new)
+        # Live words, so OneClip can start reading for hooks before the transcript is done.
+        if new:
+            print("WORDS " + json.dumps(new, ensure_ascii=True), file=sys.stderr, flush=True)
         if info.duration:
             print(f"PROGRESS {min(1.0, seg.end / info.duration):.3f}", file=sys.stderr, flush=True)
 

@@ -1,14 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { and, asc, eq } from "drizzle-orm";
 import { clipFolder, safeName, type Config } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { clips, jevCache, projects, renders, transcripts } from "../db/schema.ts";
 import { findCandidates, type ClipCandidate } from "../discovery/segment.ts";
-import { buildProfile, CONTENT_TYPES, contentAdjust, describeProfile, outsideMain, readSourceMeta, withContent } from "../discovery/profile.ts";
+import { buildProfile, clock, CONTENT_TYPES, contentAdjust, describeProfile, outsideMain, readSourceMeta, withContent } from "../discovery/profile.ts";
 import { analyzeSignals, attachMedia, classifyMedia, findMoments, mixCandidates } from "../discovery/signals.ts";
 import type { HookEvaluator, JevCache } from "../jev/evaluator.ts";
+import { LiveHookReader } from "../jev/live.ts";
 import { selectTop, type HookEvaluation } from "../jev/rank.ts";
 import { ALLOWED_EXTENSIONS, extractAudio, probe, thumbnail, verifyRender, type MediaInfo } from "../media/ffmpeg.ts";
 import { downloadSource, ensureAudio, ensureVideo, isRemoteSource } from "../media/source.ts";
@@ -148,9 +149,26 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   }
   await db.update(projects).set({ sourceInfo: info }).where(eq(projects.id, project.id));
 
+  // Sound and picture are measured while Whisper runs, so the live reader can use them.
+  const signalsP = analyzeSignals(cfg.ffmpeg, source);
+  signalsP.catch(() => undefined);
+  const meta = readSourceMeta(dir, project.sourceUrl ? title : basename(project.sourcePath ?? source, extname(project.sourcePath ?? source)));
+  const profileOf = async (words: Word[]) => {
+    const signals = await signalsP;
+    const heard = classifyMedia(signals, words);
+    const profile = buildProfile(meta, signals, words, heard, settings.content);
+    // Whisper "hears" words in instrumentals; a source known to be a song is music.
+    const kind = profile.type === "music_video" || profile.type === "song" ? "music" : heard;
+    return { signals, profile, kind };
+  };
+  const videoId = project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id;
+  const max = settings.maxCandidates;
+  const evaluator = deps.evaluator(dbJevCache(db));
+
   const provider = await deps.transcriber(settings);
   const key = `${fileFingerprint(source)}:${provider.name}:${settings.model}:${settings.language ?? "auto"}`;
   const wav = join(dir, "audio.wav");
+  let reader: LiveHookReader | undefined;
   let transcript = (await db.select().from(transcripts).where(eq(transcripts.cacheKey, key)).get())?.data as Transcript | undefined;
   if (silent) {
     transcript = { engine: "none", model: "silent", language: settings.language ?? "", duration: info.duration, words: [] };
@@ -161,13 +179,37 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     await extractAudio(cfg.ffmpeg, source, wav);
     await stage("transcribe", 0.08, `Transcribing with ${provider.name} (${settings.model})`);
     let last = 0;
+    let lastHook = "";
+    // Jev reads the words as they arrive and scores each settled part of the source.
+    const hooksLog = join(dir, "hooks.live.jsonl");
+    writeFileSync(hooksLog, "", "utf8");
+    reader = new LiveHookReader({
+      videoId,
+      preset: settings.preset,
+      duration: info.duration,
+      evaluator,
+      budget: async (w) => {
+        const { profile } = await profileOf(w);
+        return max - Math.round(max * CONTENT_TYPES[profile.type].share);
+      },
+      prepare: async (cs, w) => {
+        const { signals, profile, kind } = await profileOf(w);
+        if (kind !== "speech") return [];
+        return cs.filter((c) => !outsideMain(profile, c)).map((c) => withContent(attachMedia(c, signals, kind), profile));
+      },
+      onHook: (c, e) => {
+        appendFileSync(hooksLog, `${JSON.stringify({ start: c.start, end: c.end, score: e.final, hookType: e.hookType, opening: c.openingText })}\n`, "utf8");
+        lastHook = ` · Jev: ${e.final.toFixed(2)} hook at ${clock(c.start)} "${c.openingText.slice(0, 50)}${c.openingText.length > 50 ? "…" : ""}"`;
+      },
+    });
     transcript = await provider.transcribe(wav, {
       model: settings.model,
       language: settings.language,
+      onWords: (w) => reader?.push(w),
       onProgress: (f) => {
         if (f - last >= 0.02 || f === 1) {
           last = f;
-          progressUpdate(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%` });
+          progressUpdate(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%${lastHook}` });
         }
       },
     });
@@ -189,27 +231,21 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   writeFileSync(join(dir, "transcript.json"), JSON.stringify({ language: transcript.language, words: transcript.words, captions: captions.words }), "utf8");
 
   await stage("signals", 0.5);
-  const signals = await analyzeSignals(cfg.ffmpeg, source);
-  const heard = classifyMedia(signals, transcript.words);
-  const meta = readSourceMeta(dir, project.sourceUrl ? title : basename(project.sourcePath ?? source, extname(project.sourcePath ?? source)));
-  const profile = buildProfile(meta, signals, transcript.words, heard, settings.content);
-  // Whisper "hears" words in instrumentals; a source known to be a song is music.
-  const kind = profile.type === "music_video" || profile.type === "song" ? "music" : heard;
+  const { signals, profile, kind } = await profileOf(transcript.words);
   const content = { type: profile.type, label: CONTENT_TYPES[profile.type].label, summary: describeProfile(profile), confidence: profile.confidence, reasons: profile.reasons };
   await db.update(projects).set({ sourceInfo: { ...info, content } }).where(eq(projects.id, project.id));
 
   await stage("candidates", 0.52, `Finding the best parts of a ${content.label.toLowerCase()} (${content.summary})`);
-  const videoId = project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id;
-  const max = settings.maxCandidates;
   // Sentences only when there is real speech; moments always, from sound and picture.
   // In a song, only passages inside the song itself (not a skit before or after it).
-  const sentences = (transcript.words.length >= 20 ? findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max }) : []).filter((c) => !outsideMain(profile, c));
+  // After a live read, the same sentences Jev already scored (cache hits below).
+  const spoken = transcript.words.length < 20 ? [] : reader ? await reader.finish(transcript.words) : findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max });
+  const sentences = spoken.filter((c) => !outsideMain(profile, c));
   const moments = findMoments(videoId, signals, transcript.words, settings.preset, kind, max, info.duration, profile);
   const candidates = mixCandidates(sentences, moments, kind, max, CONTENT_TYPES[profile.type].share).map((c) => withContent(attachMedia(c, signals, kind), profile));
   if (!candidates.length) throw new Error("No moments of the chosen length were found. Try a shorter duration preset.");
 
-  await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev`);
-  const evaluator = deps.evaluator(dbJevCache(db));
+  await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev${reader?.hooks.length ? ` (${reader.hooks.length} already read live)` : ""}`);
   const evaluations = await evaluator.evaluate(candidates, (done, total) => {
     progressUpdate(db, job.id, { progress: 0.55 + (done / total) * 0.3, message: `Ranking hooks with Jev: ${done}/${total}` });
   });
