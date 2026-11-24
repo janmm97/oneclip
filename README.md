@@ -8,6 +8,8 @@ OneClip is an open-source AI video clipper powered by [One](https://withone.ai),
 
 ![OneClip's Hook Results screen: three clips ranked by Jev with a live caption preview and per-dimension scores](docs/images/results.png)
 
+> **New to terminals, Claude Code or One?** Follow the [step-by-step getting-started guide](docs/GETTING-STARTED.md): it's illustrated and goes from a new computer to your first clips.
+
 > **One is required, not a sponsor link.** OneClip calls TypeSafe's Jev through the [One CLI](https://withone.ai). One holds your TypeSafe connection and credentials; OneClip never sees or stores an API key.
 
 ## Contents
@@ -55,6 +57,8 @@ flowchart LR
 No GPU is needed. Everything was tested on Windows 11 on CPU; macOS and Linux use the same code paths but haven't been run end to end yet ([help wanted](CONTRIBUTING.md)).
 
 ## Quick start
+
+First time? The [getting-started guide](docs/GETTING-STARTED.md) walks through every step below with pictures.
 
 ```bash
 git clone https://github.com/janmm97/oneclip.git
