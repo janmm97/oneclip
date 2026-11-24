@@ -1,9 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ALLOWED_EXTENSIONS, isRemoteSource, openDb, parseProbe, schema } from "@oneclip/core";
+import { ALLOWED_EXTENSIONS, findDownloaded, isRemoteSource, openDb, parseProbe, schema } from "@oneclip/core";
 
 describe("isRemoteSource", () => {
   it("accepts http(s) links from any site", () => {
@@ -50,5 +50,15 @@ describe("db migration", () => {
     await db.insert(schema.projects).values({ id: "p", title: "t", sourcePath: "", sourceUrl: "https://youtu.be/x", settings: {} });
     const [row] = await db.select().from(schema.projects).all();
     expect(row?.sourceUrl).toBe("https://youtu.be/x");
+  });
+});
+
+describe("findDownloaded", () => {
+  it("uses the printed path, else falls back to source.<ext> in the folder", () => {
+    const dir = mkdtempSync(join(tmpdir(), "oc-dl-"));
+    for (const n of ["source.info.json", "cover.jpg", "source.f137.mp4", "source.mp4"]) writeFileSync(join(dir, n), "x");
+    expect(findDownloaded(`[download] 100%\n${join(dir, "source.mp4")}\n`, dir)).toBe(join(dir, "source.mp4"));
+    expect(findDownloaded("C:\Mangled ??\source.mp4\n", dir)).toBe(join(dir, "source.mp4"));
+    expect(findDownloaded("", mkdtempSync(join(tmpdir(), "oc-empty-")))).toBeUndefined();
   });
 });
