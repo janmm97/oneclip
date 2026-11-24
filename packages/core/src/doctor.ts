@@ -2,6 +2,7 @@ import type { Config } from "./config.ts";
 import { OneClient, OneError } from "./one/client.ts";
 import { pickPlanner } from "./plan/planners.ts";
 import { runProcess } from "./proc.ts";
+import { resolveYtDlp } from "./media/source.ts";
 import { FfmpegRenderer } from "./render/ffmpeg-renderer.ts";
 import { FasterWhisperProvider, OnnxWhisperProvider } from "./transcription/providers.ts";
 
@@ -75,6 +76,9 @@ export async function runChecks(cfg: Config, opts: { one?: OneClient; testJev?: 
       add({ id: "jev-call", label: "Jev test call", required: true, ok: false, detail: (e as Error).message, fix: (e as OneError).hint });
     }
   }
+
+  const yt = await resolveYtDlp(cfg, false).then((y) => version(y.cmd, [...y.pre, "--version"])).catch(() => undefined);
+  add({ id: "yt-dlp", label: "Links (yt-dlp)", required: false, ok: !!yt, detail: yt ? `yt-dlp ${yt}` : "not installed", fix: `Run: ${cfg.python} -m pip install -U "yt-dlp[default]" (needed for YouTube and other links; local files work without it)` });
 
   const fw = await new FasterWhisperProvider(cfg.python).available();
   const onnx = await new OnnxWhisperProvider().available();

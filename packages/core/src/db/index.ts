@@ -16,6 +16,9 @@ export function openDb(path: string): Db {
   const raw = new DatabaseSync(path);
   raw.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;");
   raw.exec(schema.DDL);
+  // Databases made before link support lack source_url.
+  const cols = raw.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
+  if (!cols.some((c) => c.name === "source_url")) raw.exec("ALTER TABLE projects ADD COLUMN source_url TEXT");
   return drizzle(
     async (sql, params, method) => {
       const stmt = raw.prepare(sql);

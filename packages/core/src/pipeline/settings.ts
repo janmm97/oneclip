@@ -17,10 +17,12 @@ export const ProjectSettingsSchema = z.object({
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
-export const STAGES = ["probe", "audio", "transcribe", "candidates", "jev", "plan", "render"] as const;
+export const STAGES = ["download", "prepare", "probe", "audio", "transcribe", "candidates", "jev", "plan", "render"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABELS: Record<Stage, string> = {
+  download: "Downloading from link",
+  prepare: "Preparing source",
   probe: "Reading video",
   audio: "Extracting audio",
   transcribe: "Transcribing",

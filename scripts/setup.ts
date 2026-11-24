@@ -2,12 +2,13 @@
  * pnpm run setup [--skip-python] [--model base]
  * 1. Checks One CLI → sign-in → TypeSafe → Jev (prints the exact command for each missing step), then the optional OpenRouter connection.
  * 2. If a Python 3.10–3.12 is found, installs faster-whisper (python/requirements.txt) for it.
- * 3. Pre-downloads the transcription model so the first job doesn't wait.
+ * 3. Makes sure yt-dlp is there (installs it with pip if not) so links from YouTube and other sites work.
+ * 4. Pre-downloads the transcription model so the first job doesn't wait.
  * Never stores keys: One keeps its own credentials.
  */
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { config, ensureDirs, findRoot, OneClient, OneError, OnnxWhisperProvider, pickTranscriber, runProcess, type ModelSize } from "@oneclip/core";
+import { config, ensureDirs, findRoot, OneClient, OneError, OnnxWhisperProvider, pickTranscriber, resolveYtDlp, runProcess, type ModelSize } from "@oneclip/core";
 
 const { values } = parseArgs({ options: { "skip-python": { type: "boolean", default: false }, model: { type: "string", default: "base" } } });
 const cfg = config();
@@ -68,6 +69,14 @@ if (!values["skip-python"]) {
     else if (py !== cfg.python) console.log(`  Installed. Add ONECLIP_PYTHON=${py} to .env so OneClip uses it.`);
     else console.log("  Installed.");
   }
+}
+
+step("yt-dlp (video, audio and podcast links)");
+try {
+  const y = await resolveYtDlp(cfg);
+  console.log(`  Ready: ${[y.cmd, ...y.pre].join(" ")}`);
+} catch (e) {
+  console.log(`  ${(e as Error).message}`);
 }
 
 step(`Transcription model (${values.model})`);

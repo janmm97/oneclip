@@ -1,7 +1,7 @@
 import { fetchYouTubeMeta } from "@oneclip/core";
 import { errorText, guard, json } from "@/lib/server";
 
-/** Title, channel and thumbnail via YouTube's public oEmbed endpoint. Never downloads the video. */
+/** Title, channel and thumbnail preview via YouTube's public oEmbed endpoint (the download itself runs in the analyze job). */
 export async function POST(req: Request) {
   const blocked = guard(req);
   if (blocked) return blocked;

@@ -21,6 +21,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     opencodeBin: env.OPENCODE_BIN || "opencode",
     ffmpeg: env.FFMPEG_BIN || "ffmpeg",
     ffprobe: env.FFPROBE_BIN || "ffprobe",
+    ytdlp: env.YTDLP_BIN || "yt-dlp",
   };
 }
 

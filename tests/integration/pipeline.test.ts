@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   claimNext,
@@ -162,5 +163,29 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     expect(existsSync(r?.path ?? "")).toBe(true);
     expect(r?.verify).toMatchObject({ width: 540, height: 960 });
     expect(one.calls.length).toBe(before);
+  }, 180_000);
+
+  it("queues a link for download instead of rejecting it", async () => {
+    const link = "https://youtu.be/icXUkIfZxyg?si=dd89rDAfK76Y8Znu";
+    const { projectId: id } = await createProject(deps, { sourcePath: link, authorized: true });
+    const [p] = await deps.db.select().from(schema.projects).where(eq(schema.projects.id, id)).all();
+    expect(p?.sourceUrl).toBe(link);
+    expect(p?.sourcePath).toBe("");
+    // Leave the real download to the end-to-end run; drop the queued job.
+    await deps.db.delete(schema.jobs).where(eq(schema.jobs.projectId, id));
+  });
+
+  it("turns a podcast MP3 into a cover-art video and analyzes it", async () => {
+    const mp3 = join(dir, "episode.mp3");
+    const r = spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=330:duration=45", "-c:a", "libmp3lame", mp3], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+    const { projectId: id } = await createProject(deps, { sourcePath: mp3, authorized: true, settings: { preset: "quick", topN: 1, renderer: "ffmpeg" } });
+    const job = await claimNext(deps.db);
+    await runJob(deps, job as NonNullable<typeof job>);
+    const [p] = await deps.db.select().from(schema.projects).where(eq(schema.projects.id, id)).all();
+    expect(p?.error ?? null).toBeNull();
+    expect(p?.status).toBe("ready");
+    expect(p?.sourcePath).toMatch(/source-video\.mp4$/);
+    expect(p?.sourceInfo).toMatchObject({ width: 1080, height: 1080, hasAudio: true });
   }, 180_000);
 });

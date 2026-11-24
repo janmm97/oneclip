@@ -1,7 +1,7 @@
 /**
- * YouTube links are used for metadata only (title, channel, thumbnail via
- * oEmbed). OneClip never downloads from YouTube: the user supplies a local
- * copy they are authorised to use.
+ * Quick title/channel/thumbnail preview for YouTube links via oEmbed. The
+ * video itself (from YouTube or any other site) is downloaded by yt-dlp in
+ * the analyze job (media/source.ts).
  */
 
 const HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtube-nocookie.com"]);
