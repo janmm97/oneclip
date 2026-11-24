@@ -96,6 +96,8 @@ export function buildCaptions(words: Word[], cuts: Range[], emphasis: string[], 
  * Draft (from an agent or the template planner) → full EditPlan. Every time
  * is clamped to the candidate and snapped to word boundaries, so a bad or
  * hostile draft can at worst produce a dull clip, never a broken one.
+ * `captionWords` is what the captions say (an English track, or none); cuts
+ * always follow the spoken `words`.
  */
 export function compilePlan(
   candidate: ClipCandidate,
@@ -103,6 +105,7 @@ export function compilePlan(
   draft: PlanDraft,
   planner: string,
   output: "final" | "preview" = "final",
+  captionWords: Word[] = words,
 ): EditPlan {
   const bounds = { start: candidate.start, end: candidate.end };
   const clipWords = words.filter((w) => w.end > bounds.start && w.start < bounds.end);
@@ -144,7 +147,7 @@ export function compilePlan(
     template: draft.template,
     title: draft.title.trim() || candidate.openingText.slice(0, 80),
     cuts,
-    captions: buildCaptions(clipWords, cuts, draft.emphasis),
+    captions: buildCaptions(captionWords.filter((w) => w.end > bounds.start && w.start < bounds.end), cuts, draft.emphasis),
     zoomEvents,
     audio: { normalize: true, targetLufs: -14 },
     outputDuration: totalDuration(cuts),

@@ -1,6 +1,6 @@
 """OneClip transcription worker: faster-whisper, word timestamps, JSON on stdout.
 
-Usage: python transcribe.py --input audio.wav --model small [--device auto|cpu|cuda] [--language en]
+Usage: python transcribe.py --input audio.wav --model small [--device auto|cpu|cuda] [--language en] [--task transcribe|translate]
 Progress lines go to stderr as "PROGRESS <0..1>". Everything runs locally.
 """
 
@@ -15,6 +15,7 @@ def main() -> int:
     ap.add_argument("--model", default="small")
     ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     ap.add_argument("--language", default=None)
+    ap.add_argument("--task", default="transcribe", choices=["transcribe", "translate"])
     ap.add_argument("--check", action="store_true", help="only check that faster-whisper imports")
     args = ap.parse_args()
 
@@ -34,7 +35,7 @@ def main() -> int:
     except Exception:  # CUDA libraries missing or out of memory: fall back to CPU
         model = WhisperModel(args.model, device="cpu", compute_type="int8")
 
-    segments, info = model.transcribe(args.input, word_timestamps=True, vad_filter=True, language=args.language)
+    segments, info = model.transcribe(args.input, word_timestamps=True, vad_filter=True, language=args.language, task=args.task)
     words = []
     for seg in segments:
         for w in seg.words or []:

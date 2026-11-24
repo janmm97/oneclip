@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, openSync, readSync, closeSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { and, asc, eq } from "drizzle-orm";
 import { clipFolder, safeName, type Config } from "../config.ts";
@@ -17,7 +17,8 @@ import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
 import { EditPlanSchema, OUTPUT_PRESETS, type EditPlan } from "../plan/schema.ts";
 import { redact } from "../proc.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
-import type { Transcript, TranscriptionProvider } from "../transcription/types.ts";
+import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
+import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
 import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
@@ -147,6 +148,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
 
   const provider = await deps.transcriber(settings);
   const key = `${fileFingerprint(source)}:${provider.name}:${settings.model}:${settings.language ?? "auto"}`;
+  const wav = join(dir, "audio.wav");
   let transcript = (await db.select().from(transcripts).where(eq(transcripts.cacheKey, key)).get())?.data as Transcript | undefined;
   if (silent) {
     transcript = { engine: "none", model: "silent", language: settings.language ?? "", duration: info.duration, words: [] };
@@ -154,7 +156,6 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     await stage("transcribe", 0.5, "Using cached transcript");
   } else {
     await stage("audio", 0.05);
-    const wav = join(dir, "audio.wav");
     await extractAudio(cfg.ffmpeg, source, wav);
     await stage("transcribe", 0.08, `Transcribing with ${provider.name} (${settings.model})`);
     let last = 0;
@@ -170,7 +171,18 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     });
     await db.insert(transcripts).values({ cacheKey: key, engine: transcript.engine, model: transcript.model, data: transcript }).onConflictDoNothing();
   }
-  await db.update(projects).set({ transcriber: `${transcript.engine} ${transcript.model}` }).where(eq(projects.id, project.id));
+  const captions = await captionTrack(deps, settings, transcript, {
+    url: project.sourceUrl,
+    dir,
+    provider,
+    key,
+    wav: async () => {
+      if (!existsSync(wav)) await extractAudio(cfg.ffmpeg, source, wav);
+      return wav;
+    },
+    onStage: (m) => stage("transcribe", 0.5, m),
+  });
+  await db.update(projects).set({ transcriber: `${transcript.engine} ${transcript.model} · ${captions.source}` }).where(eq(projects.id, project.id));
 
   await stage("signals", 0.5);
   const signals = await analyzeSignals(cfg.ffmpeg, source);
@@ -201,7 +213,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   await db.delete(clips).where(eq(clips.projectId, project.id));
   for (const [i, r] of ranked.entries()) {
     await updateJob(db, job.id, { progress: 0.86 + (i / ranked.length) * 0.13, message: `Planning clip ${i + 1}/${ranked.length} with ${planner.name}` });
-    const { plan, planError } = await planClip(planner, r.candidate, transcript, r.evaluation, settings);
+    const { plan, planError } = await planClip(planner, r.candidate, transcript, r.evaluation, settings, captions.words);
     await db.insert(clips).values({
       id: `${project.id}:${r.candidate.id}`,
       projectId: project.id,
@@ -217,6 +229,56 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   await updateJob(db, job.id, { status: "done", progress: 1, stage: "plan", message: `${ranked.length} clips ready` });
 }
 
+const LANGUAGES: Record<string, string> = { ko: "Korean", ja: "Japanese", zh: "Chinese", es: "Spanish", fr: "French", de: "German", pt: "Portuguese", hi: "Hindi", tl: "Tagalog", id: "Indonesian", th: "Thai", vi: "Vietnamese", ru: "Russian", ar: "Arabic", it: "Italian" };
+const languageName = (code: string) => LANGUAGES[code] ?? (code ? code.toUpperCase() : "the spoken language");
+
+/**
+ * The words the captions show. English mode keeps English speech as it is;
+ * other languages get the link's English subtitles (the uploader's, then the
+ * site's translation) or, failing that, Whisper's own English translation.
+ */
+export async function captionTrack(
+  deps: Pick<PipelineDeps, "db" | "cfg">,
+  settings: ProjectSettings,
+  transcript: Transcript,
+  o: { url?: string | null; dir: string; provider: TranscriptionProvider; key: string; wav: () => Promise<string>; onStage?: (message: string) => Promise<unknown> },
+): Promise<{ words: Word[]; source: string }> {
+  // The ONNX fallback decodes in English unless told a language, so its "en" says nothing: ask the site instead.
+  const heard = transcript.engine === "whisper-onnx" && !settings.language ? "" : transcript.language;
+  const lang = (heard || siteLanguage(o.dir)).toLowerCase();
+  const spoken = { words: transcript.words, source: `captions in ${languageName(lang)}` };
+  if (settings.captions === "off") return { words: [], source: "no captions" };
+  if (settings.captions === "original" || !transcript.words.length || lang.startsWith("en")) return spoken;
+  if (o.url) {
+    await o.onStage?.("Looking for English subtitles");
+    const subs = await fetchEnglishSubtitles(deps.cfg, o.url, o.dir);
+    if (subs) return { words: subs, source: "English captions from the site's subtitles" };
+  }
+  if (!lang) return spoken;
+  const key = `${o.key}:translate`;
+  let english = (await deps.db.select().from(transcripts).where(eq(transcripts.cacheKey, key)).get())?.data as Transcript | undefined;
+  if (!english) {
+    await o.onStage?.(`Translating ${languageName(lang)} captions to English`);
+    try {
+      english = await o.provider.transcribe(await o.wav(), { model: settings.model, language: settings.language ?? lang, task: "translate" });
+    } catch (e) {
+      return { ...spoken, source: `${spoken.source} (English translation failed: ${redact((e as Error).message).slice(0, 120)})` };
+    }
+    await deps.db.insert(transcripts).values({ cacheKey: key, engine: english.engine, model: english.model, data: english }).onConflictDoNothing();
+  }
+  return english.words.length ? { words: english.words, source: `English captions translated from ${languageName(lang)} by Whisper` } : spoken;
+}
+
+/** The language a link's page declares (yt-dlp's info file), or "" when it says none. */
+function siteLanguage(dir: string): string {
+  try {
+    const lang = (JSON.parse(readFileSync(join(dir, "source.info.json"), "utf8")) as { language?: unknown }).language;
+    return typeof lang === "string" && /^[a-z]{2,3}(-[\w]+)?$/i.test(lang) ? lang.split("-")[0] as string : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Agent plan when it works; the labelled template plan when it doesn't. Never fails the project. */
 export async function planClip(
   planner: EditingPlanner,
@@ -224,6 +286,7 @@ export async function planClip(
   transcript: Transcript,
   evaluation: HookEvaluation,
   settings: ProjectSettings,
+  captionWords: Word[] = transcript.words,
 ): Promise<{ plan: EditPlan; planError: string | null }> {
   const style = {
     template: settings.template === "auto" ? undefined : settings.template,
@@ -236,12 +299,12 @@ export async function planClip(
     // Moments are a stretch of sound and picture: cutting the quiet parts would break the beat.
     if (candidate.kind === "moment") Object.assign(draft, { removeSilences: false, keep: [] });
     if (style.captionPreset) draft.captionPreset = style.captionPreset;
-    return { plan: compilePlan(candidate, transcript.words, draft, planner.name), planError: null };
+    return { plan: compilePlan(candidate, transcript.words, draft, planner.name, "final", captionWords), planError: null };
   } catch (e) {
     const fallback = new TemplatePlanner();
     const draft = await fallback.plan(input);
     const why = planner instanceof TemplatePlanner ? null : redact((e as Error).message).slice(0, 400);
-    return { plan: compilePlan(candidate, transcript.words, draft, fallback.name), planError: why };
+    return { plan: compilePlan(candidate, transcript.words, draft, fallback.name, "final", captionWords), planError: why };
   }
 }
 

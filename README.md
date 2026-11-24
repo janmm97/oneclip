@@ -84,7 +84,10 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 ## Using the app
 
 1. **Setup** shows the same checks as `pnpm run doctor`, with the exact fix for anything red. "Test Jev live" sends one small request.
-2. **New clip.** Paste a link (YouTube or any video, audio or podcast site yt-dlp supports) or the full path to a video or audio file on your computer, and tick that you own it or are authorised to edit it. Links are downloaded when the analysis starts; audio-only sources (podcasts, MP3s) are turned into a cover-art video first. Pick the clip length, how many clips to keep, the renderer and the edit planner.
+2. **New clip.** Paste a link (YouTube or any video, audio or podcast site yt-dlp supports) or the full path to a video or audio file on your computer, and tick that you own it or are authorised to edit it. Links are downloaded when the analysis starts; audio-only sources (podcasts, MP3s) are turned into a cover-art video first. Pick the clip length, how many clips to keep, the renderer, the edit planner and the captions:
+   - **English (translated when needed)**, the default. For a link, OneClip uses the site's English subtitles when it has them (a K-pop video's official English lyrics, for example); otherwise Whisper translates the audio into English on your machine.
+   - **Original language**: captions in the language that's spoken or sung.
+   - **No captions**.
 3. **Processing** shows each stage live: probe, audio, transcribe, signals, candidates, Jev, plan. Talks, podcasts, songs, music videos, film scenes and silent footage all work: videos with no sound get a silent track and skip transcription. You can close the tab; the worker keeps going and resumes after a restart.
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
@@ -97,7 +100,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 |---|---|
 | `pnpm run setup [--skip-python] [--model base]` | First-run setup (see above) |
 | `pnpm run doctor [--test-jev]` | Checks Node, FFmpeg, libass, One, TypeSafe, Jev, transcription, editing agent, Remotion |
-| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--no-render]` | The whole pipeline without the UI |
+| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--no-render]` | The whole pipeline without the UI |
 | `pnpm eval:hooks [--dry] [--feedback] [--json]` | Runs Jev over `datasets/` and reports precision@K, ranking agreement, strong-hook recall and false-positive rate |
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
 | `pnpm test` · `pnpm lint` · `pnpm build` | Unit and integration tests · type checks · production build |
@@ -198,6 +201,8 @@ Only process videos you own or are authorised to edit.
 | faster-whisper won't install or crashes | It needs Python 3.10–3.12. OneClip falls back to ONNX Whisper automatically. On Windows 11 with **Smart App Control** on, unsigned native Python wheels can be blocked; the ONNX fallback still works |
 | ONNX transcripts are weaker | The ONNX fallback is a lighter path: it uses Whisper small for every model setting (medium and large-v3 included), transcribes in 30 s windows, and assumes English when the language is auto. Set the language explicitly for other languages, or install faster-whisper for best results |
 | FFmpeg captions missing | Your FFmpeg has no libass; install a full build, or use the Remotion renderer |
+| English captions of a song are off | Whisper's translation is made for speech and is weak on singing. Use a link that has English subtitles (official music videos usually do), or pick "Original language" |
+| A local non-English file gets captions in its own language | The ONNX fallback can't detect the language of a local file. Install faster-whisper (`pnpm run setup`) or set the language, and English captions are translated |
 | First Remotion render is slow | It downloads Chrome Headless Shell once (~131 MB) |
 | "No complete thoughts fit this clip length" | Pick a shorter preset; very short or music-only videos have few complete sentences |
 | A render failed | The results screen shows the error; "Render 1080p" again retries. Try the FFmpeg renderer |

@@ -12,6 +12,11 @@ const RENDERERS = [
   ["remotion", "Remotion (animated captions)"],
   ["ffmpeg", "FFmpeg only (fastest)"],
 ] as const;
+const CAPTIONS = [
+  ["english", "English (translated when needed)"],
+  ["original", "Original language"],
+  ["off", "No captions"],
+] as const;
 const PLANNERS = [
   ["auto", "Auto (best available)"],
   ["openrouter", "OpenRouter via One (cheap models)"],
@@ -25,7 +30,7 @@ export function NewProject() {
   const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
   const [authorized, setAuthorized] = useState(false);
-  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto" });
+  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english" });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
@@ -110,6 +115,9 @@ export function NewProject() {
         </Field>
         <Field label="Renderer">
           <Select options={RENDERERS} value={s.renderer} onChange={(e) => setS({ ...s, renderer: e.target.value })} />
+        </Field>
+        <Field label="Captions" hint="English uses the link's own English subtitles when it has them, otherwise Whisper translates the speech or lyrics on this computer.">
+          <Select options={CAPTIONS} value={s.captions} onChange={(e) => setS({ ...s, captions: e.target.value })} />
         </Field>
         <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />

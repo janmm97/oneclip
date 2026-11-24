@@ -18,6 +18,8 @@ export type ModelSize = (typeof MODEL_SIZES)[number];
 export interface TranscribeOptions {
   model: ModelSize;
   language?: string;
+  /** "translate" asks Whisper for English text instead of the spoken language. */
+  task?: "transcribe" | "translate";
   device?: "auto" | "cpu" | "cuda";
   onProgress?: (fraction: number) => void;
 }
