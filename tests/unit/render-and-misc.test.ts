@@ -1,9 +1,12 @@
+import { basename, dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assEscape,
   assTime,
   buildAss,
   buildFilterGraph,
+  clipFolder,
+  config,
   type EditPlan,
   extractYouTubeId,
   fetchYouTubeMeta,
@@ -12,6 +15,7 @@ import {
   rankingAgreement,
   rate,
   redact,
+  safeName,
 } from "@oneclip/core";
 import { assToCss, zoomAt } from "@oneclip/remotion/compositions";
 
@@ -130,6 +134,28 @@ describe("YouTube metadata (oEmbed only, no download)", () => {
     await expect(fetchYouTubeMeta("https://youtu.be/dQw4w9WgXcQ", status(401))).rejects.toThrow(/private/);
     await expect(fetchYouTubeMeta("https://youtu.be/dQw4w9WgXcQ", status(404))).rejects.toThrow(/couldn't find/);
     await expect(fetchYouTubeMeta("not a link")).rejects.toThrow(/YouTube video link/);
+  });
+});
+
+describe("clips folder", () => {
+  it("defaults to ./clips in the OneClip folder and honours ONECLIP_CLIPS_DIR", () => {
+    const def = config({});
+    expect(basename(def.clipsDir)).toBe("clips");
+    expect(dirname(def.clipsDir)).toBe(dirname(def.dataDir));
+    expect(config({ ONECLIP_CLIPS_DIR: "my-clips" }).clipsDir).toBe(resolve("my-clips"));
+  });
+  it("makes safe file names from titles", () => {
+    expect(safeName("Why We Review Config: Like Code!")).toBe("why-we-review-config-like-code");
+    expect(safeName("../../etc/passwd")).toBe("etc-passwd");
+    expect(safeName("Café déjà vu")).toBe("café-déjà-vu");
+    expect(safeName("???")).toBe("");
+    expect(safeName("a".repeat(80)).length).toBe(50);
+  });
+  it("gives each video its own folder", () => {
+    const cfg = config({ ONECLIP_CLIPS_DIR: "c" });
+    const id = "1234abcd-0000-4000-8000-000000000000";
+    expect(clipFolder(cfg, { id, title: "My Talk" })).toBe(join(resolve("c"), "my-talk-1234abcd"));
+    expect(clipFolder(cfg, { id, title: "" })).toBe(join(resolve("c"), "1234abcd"));
   });
 });
 

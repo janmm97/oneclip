@@ -32,6 +32,10 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
         ) : null}
       </div>
 
+      <p className="mt-3 text-sm text-muted">
+        1080p clips are saved automatically to <code className="rounded bg-raised px-1.5 py-0.5 text-fg">{view.project.clipsFolder}</code> in your OneClip folder.
+      </p>
+
       {rendering.length ? (
         <p className="mt-6 flex items-center gap-2 text-sm text-muted" aria-live="polite">
           <span className="tally-live size-2 rounded-full bg-tally" aria-hidden />
