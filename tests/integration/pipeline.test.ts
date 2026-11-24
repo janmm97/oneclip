@@ -3,14 +3,15 @@
 // MOCKS (labelled): the transcriber returns a fixed synthetic transcript, and
 // the One client returns hand-written Jev answers instead of calling TypeSafe.
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   claimNext,
   type ClipCandidate,
+  clipFolder,
   config,
   createProject,
   enqueue,
@@ -84,7 +85,7 @@ function mockOne() {
 
 describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)", () => {
   const dir = mkdtempSync(join(tmpdir(), "oneclip-it-"));
-  const cfg = config({ ...process.env, ONECLIP_DATA_DIR: join(dir, "data") });
+  const cfg = config({ ...process.env, ONECLIP_DATA_DIR: join(dir, "data"), ONECLIP_CLIPS_DIR: join(dir, "clips") });
   const video = join(dir, "talk.mp4");
   const one = mockOne();
   let deps: PipelineDeps;
@@ -164,7 +165,22 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     expect(existsSync(r?.path ?? "")).toBe(true);
     expect(r?.verify).toMatchObject({ width: 540, height: 960 });
     expect(one.calls.length).toBe(before);
+    expect(r?.path.startsWith(join(dir, "data"))).toBe(true);
   }, 180_000);
+
+  it("saves the 1080p render in the clips folder automatically", async () => {
+    const clip = (await deps.db.select().from(schema.clips).all()).find((c) => c.rank === 1);
+    await queueRenders(deps.db, projectId, "final", clip?.id);
+    const job = await claimNext(deps.db);
+    await runJob(deps, job as NonNullable<typeof job>);
+    const r = (await deps.db.select().from(schema.renders).all()).find((x) => x.quality === "final");
+    expect(r?.status).toBe("done");
+    const project = await deps.db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+    const folder = clipFolder(cfg, project as NonNullable<typeof project>);
+    expect(dirname(r?.path ?? "")).toBe(folder);
+    expect(basename(r?.path ?? "")).toMatch(/^01(-[\p{L}\p{N}-]+)?\.mp4$/u);
+    expect(readdirSync(folder)).toContain(basename(r?.path ?? ""));
+  }, 300_000);
 
   it("queues a link for download instead of rejecting it", async () => {
     const link = "https://youtu.be/icXUkIfZxyg?si=dd89rDAfK76Y8Znu";

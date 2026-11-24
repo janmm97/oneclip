@@ -12,6 +12,7 @@ __pycache__/
 
 # local data: projects, media, renders, database, model cache
 .oneclip/
+clips/
 data/
 renders/
 *.db

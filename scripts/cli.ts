@@ -8,7 +8,7 @@
  */
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { config, createDeps, createProject, ensureDirs, isRemoteSource, openDb, queueRenders, runJob, schema, type Job } from "@oneclip/core";
+import { clipFolder, config, createDeps, createProject, ensureDirs, isRemoteSource, openDb, queueRenders, runJob, schema, type Job } from "@oneclip/core";
 import { asc, eq } from "drizzle-orm";
 
 const { values, positionals } = parseArgs({
@@ -96,5 +96,9 @@ if (!values["no-render"]) {
   await drain(projectId);
   const outs = await db.select().from(schema.renders).where(eq(schema.renders.projectId, projectId)).all();
   for (const r of outs) console.log(`${r.status}  ${r.renderer}  ${r.ms ?? "-"}ms  ${r.path}${r.error ? `\n  ${r.error}` : ""}`);
+  if (values.quality !== "preview") {
+    const project = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+    if (project) console.log(`\nYour clips are in: ${clipFolder(cfg, project)}`);
+  }
 }
 console.log(`Total ${secs()}`);

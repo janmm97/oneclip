@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, openSync, readSync, closeSync, statSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { and, asc, eq } from "drizzle-orm";
-import type { Config } from "../config.ts";
+import { clipFolder, safeName, type Config } from "../config.ts";
 import type { Db } from "../db/index.ts";
 import { clips, jevCache, projects, renders, transcripts } from "../db/schema.ts";
 import { findCandidates, type ClipCandidate } from "../discovery/segment.ts";
@@ -259,9 +259,13 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   const slug = `${String(clip.rank).padStart(2, "0")}-${quality}`;
   const workDir = join(projectDir(cfg, project.id), "work", slug);
   mkdirSync(workDir, { recursive: true });
-  const outPath = join(dir, `clip-${slug}.mp4`);
+  // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
+  const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
+  const name = safeName(plan.title, 60);
+  const outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}.mp4` : `clip-${slug}.mp4`);
   const thumbPath = join(dir, `clip-${slug}.jpg`);
   mkdirSync(dir, { recursive: true });
+  mkdirSync(outDir, { recursive: true });
 
   // Chosen renderer first; FFmpeg-only as the fallback if it fails or isn't installed.
   const order = [...new Set([settings.renderer, "ffmpeg" as const])].map((k) => deps.renderers[k]).filter((r): r is VideoRenderer => Boolean(r));
