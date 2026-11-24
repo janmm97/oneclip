@@ -12,7 +12,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     dbPath: join(dataDir, "oneclip.db"),
     projectsDir: join(dataDir, "projects"),
     /** Finished 1080p clips, one sub-folder per video. Made automatically; visible, outside the hidden data folder. */
-    clipsDir: resolve(env.ONECLIP_CLIPS_DIR || join(findRoot(), "clips")),
+    clipsDir: resolve(findRoot(), env.ONECLIP_CLIPS_DIR || "clips"),
     python: env.ONECLIP_PYTHON || (process.platform === "win32" ? "python" : "python3"),
     jevModel: env.ONECLIP_JEV_MODEL || "jev-latest",
     jevConcurrency: clampInt(env.ONECLIP_JEV_CONCURRENCY, 3, 1, 8),

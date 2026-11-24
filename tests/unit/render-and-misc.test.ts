@@ -10,6 +10,7 @@ import {
   type EditPlan,
   extractYouTubeId,
   fetchYouTubeMeta,
+  findRoot,
   mean,
   precisionAtK,
   rankingAgreement,
@@ -142,7 +143,8 @@ describe("clips folder", () => {
     const def = config({});
     expect(basename(def.clipsDir)).toBe("clips");
     expect(dirname(def.clipsDir)).toBe(dirname(def.dataDir));
-    expect(config({ ONECLIP_CLIPS_DIR: "my-clips" }).clipsDir).toBe(resolve("my-clips"));
+    expect(config({ ONECLIP_CLIPS_DIR: "my-clips" }).clipsDir).toBe(resolve(findRoot(), "my-clips"));
+    expect(config({ ONECLIP_CLIPS_DIR: resolve("abs-clips") }).clipsDir).toBe(resolve("abs-clips"));
   });
   it("makes safe file names from titles", () => {
     expect(safeName("Why We Review Config: Like Code!")).toBe("why-we-review-config-like-code");
