@@ -202,9 +202,9 @@ Clone OneClip and your agent gets the `oneclip-editor` skill plus 17 motion-grap
 | Motion taste | LottieFiles motion-design-skill, iart-ai motion-design-skills, awesome-motion-design-agent-skills |
 | Web animation | GSAP, Motion, lottie-web |
 
-Repos and links are in [`skills/motion-skills.json`](skills/motion-skills.json). `pnpm skills` installs or updates them; `pnpm skills --only animate,gsap` installs some. Each repo is shallow-cloned and only its folders with a `SKILL.md` are copied, so libraries without agent skills (such as lottie-web) add nothing. What got installed, with the commit of each repo, is in `.claude/skills/.oneclip-skills.json`. It needs only Node and git; set `ONECLIP_SKIP_SKILLS=1` to turn it off. Skills you already have with the same name are never overwritten.
+Repos, links and pinned commits are in [`skills/motion-skills.json`](skills/motion-skills.json). `pnpm skills` installs or updates them, and `pnpm skills --only animate,gsap` installs just some. OneClip fetches each repo at its pinned commit and copies only the folders that have a `SKILL.md`, so libraries without agent skills (such as lottie-web) add nothing. What got installed is listed in `.claude/skills/.oneclip-skills.json`. It needs only Node and git. Set `ONECLIP_SKIP_SKILLS=1` to turn it off. Skills you already have with the same name are never overwritten. If a skill pre-approves tools or adds hooks (`allowed-tools` or `hooks` in its frontmatter), OneClip prints a warning.
 
-These skills are third-party. OneClip fetches them from their own repos on your machine; it doesn't ship, pin or review them. Read a skill's scripts before you let an agent run them, and check each repo's licence before client work.
+These skills are third-party. OneClip doesn't ship them: it fetches them from their own repos on your machine. Each one is pinned to a commit, so a later push upstream doesn't reach your agent until a OneClip PR moves the pin. To move the pins, run `pnpm skills --latest --pin`, review what changed upstream, then open a PR. `pnpm skills --latest` on its own installs each repo's newest commit without pinning it (unreviewed). Read a skill's scripts before you let an agent run them, and check each repo's licence before client work.
 
 ## Rendering
 
