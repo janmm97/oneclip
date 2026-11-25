@@ -14,7 +14,7 @@ They are installed into `.claude/skills/` and `.agents/skills/` (both git-ignore
 - **Claude Code** installs them by itself on the first session in this folder (the `SessionStart` hook in `.claude/settings.json`). If the skills don't show up in that first session, start a new one.
 - **Any other agent** (Codex, OpenCode, Cursor, …): if `.agents/skills/` is missing or empty, run `pnpm skills` (or `node scripts/install-skills.mjs`) once, before anything else.
 
-`pnpm skills` also updates them. It needs only Node and git. Third-party skills come straight from their own repos and aren't reviewed by OneClip: read a skill's scripts before running them.
+`pnpm skills` also updates them. It needs only Node and git. Third-party skills come from their own repos, at the commit pinned in `skills/motion-skills.json`. To move the pins, run `pnpm skills --latest --pin` and send the diff as a PR. Read a skill's scripts before running them.
 
 ## Working in this repo
 

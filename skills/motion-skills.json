@@ -1,5 +1,5 @@
 {
-  "about": "Motion-graphics agent skills OneClip installs into .claude/skills and .agents/skills (list from trinhstudio.com/inside/claude-motion-graphics-repos-2026). These are third-party: OneClip fetches them from their own repos on your machine and does not ship or review them. Read each repo's licence before client work.",
+  "about": "Motion-graphics agent skills OneClip installs into .claude/skills and .agents/skills (list from trinhstudio.com/inside/claude-motion-graphics-repos-2026). These are third-party: OneClip fetches them from their own repos on your machine, each at its pinned commit, and does not ship them. Move the pins with `pnpm skills --latest --pin` and a reviewed PR. Read each repo's licence before client work.",
   "sources": [
     { "id": "hyperframes", "repo": "heygen-com/hyperframes", "group": "render engine", "use": "Write HTML/CSS and render it to video (GSAP under the hood)", "license": "Apache-2.0" },
     { "id": "remotion", "repo": "remotion-dev/remotion", "group": "render engine", "use": "Video in React (OneClip's caption renderer)", "license": "Remotion License (some companies need a paid licence)" },
