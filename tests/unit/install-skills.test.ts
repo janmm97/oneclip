@@ -85,6 +85,15 @@ describe("install-skills", () => {
     expect(existsSync(join(root, ".claude", "skills", "s", "escape"))).toBe(false);
   });
 
+  it("skips a skill whose folder name is not a plain name", () => {
+    host("o/oddname", { "ok/SKILL.md": skill("ok"), "-rf bad/SKILL.md": skill("bad") });
+    manifest(["oddname"]);
+    const r = install("--only", "oddname");
+    expect(has("ok")).toBe(true);
+    expect(has("-rf bad")).toBe(false);
+    expect(r.stdout).toContain("unsafe folder name");
+  });
+
   it("is off with ONECLIP_SKIP_SKILLS", () => {
     const r = spawnSync(process.execPath, [script], { encoding: "utf8", env: { ...process.env, ONECLIP_SKILLS_ROOT: root, ONECLIP_SKIP_SKILLS: "1" } });
     expect(r.stdout).toBe("");

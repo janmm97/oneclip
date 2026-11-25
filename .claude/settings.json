@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/install-skills.mjs --if-missing",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/install-skills.mjs\" --if-missing",
             "timeout": 600
           }
         ]
