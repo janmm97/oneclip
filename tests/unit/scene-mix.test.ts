@@ -97,3 +97,13 @@ describe("scene mixing", () => {
     expect(PlanDraftSchema.safeParse({ ...base, segments: Array.from({ length: 61 }, () => ({ start: 0, end: 1 })) }).success).toBe(false);
   });
 });
+
+describe("mix length cap", () => {
+  it("cuts a mix that repeats a long shot at 10 minutes", () => {
+    const seg = { start: 0, end: 300 };
+    const plan = compilePlan(cand, words, { ...base, segments: Array.from({ length: 60 }, () => seg) }, "agent", "final", words, { sourceDuration: 600 });
+    expect(plan.outputDuration).toBeLessThanOrEqual(600.01);
+    expect(plan.outputDuration).toBeGreaterThan(590);
+    expect(plan.cuts.length).toBe(2);
+  });
+});

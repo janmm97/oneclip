@@ -129,15 +129,25 @@ function speechZones(words: Word[], cuts: Cut[], gap = 0.6, pad = 0.1): Range[] 
   return out;
 }
 
+/** A scene mix longer than this is cut off (a short is seconds; this stops a plan that repeats a long shot 60 times). */
+export const MAX_MIX_SECONDS = 600;
+
 /** Scene-mix segments → cuts: clamped into `limit`, kept in the agent's order (repeats allowed), never word-snapped. */
 function mixCuts(segments: NonNullable<PlanDraft["segments"]>, limit: Range): Cut[] {
+  let total = 0;
   return segments.flatMap((sg) => {
+    if (total >= MAX_MIX_SECONDS) return [];
     const start = Math.max(limit.start, sg.start);
     const end = Math.min(limit.end, sg.end);
     const len = end - start;
     if (len < 0.2) return [];
     const cut: Cut = { start, end };
-    if (sg.audioFrom !== undefined) cut.audioFrom = Math.min(Math.max(limit.start, sg.audioFrom), limit.end - len);
+    // Up to 60 repeats of a long shot would render for hours: cut the mix off at the cap.
+    const over = total + len / (sg.speed ?? 1) - MAX_MIX_SECONDS;
+    if (over > 0) cut.end = Math.max(start + 0.2, end - over * (sg.speed ?? 1));
+    total += (cut.end - start) / (sg.speed ?? 1);
+    const kept = cut.end - start;
+    if (sg.audioFrom !== undefined) cut.audioFrom = Math.min(Math.max(limit.start, sg.audioFrom), limit.end - kept);
     if (sg.muted) cut.muted = true;
     if (sg.speed !== undefined && sg.speed !== 1) cut.speed = sg.speed;
     if (sg.volume !== undefined && sg.volume !== 1) cut.volume = sg.volume;
