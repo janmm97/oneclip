@@ -16,6 +16,7 @@ export * from "./plan/compile.ts";
 export * from "./plan/planners.ts";
 export * from "./media/ffmpeg.ts";
 export * from "./media/source.ts";
+export * from "./vision/scenes.ts";
 export * from "./render/types.ts";
 export * from "./render/ass.ts";
 export * from "./render/ffmpeg-renderer.ts";

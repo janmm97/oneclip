@@ -1,0 +1,13 @@
+{
+  "title": "The winner, then again in slow motion",
+  "segments": [
+    { "start": 42.0, "end": 45.0 },
+    { "start": 45.0, "end": 48.5 },
+    { "start": 45.0, "end": 48.5, "speed": 0.5, "muted": true },
+    { "start": 52.0, "end": 55.0, "audioFrom": 48.5, "volume": 1.2 }
+  ],
+  "bed": { "start": 60.0, "volume": 0.3, "duck": 0.4 },
+  "transitionPreset": "punch-in",
+  "captionPreset": "bold-pop",
+  "reasoning": "Build-up, the play at full speed, the same play at half speed over the crowd bed, then the reaction shot carrying the roar from the moment itself."
+}

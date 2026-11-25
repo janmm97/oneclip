@@ -1,0 +1,13 @@
+{
+  "title": "Why this place changed my mind",
+  "segments": [
+    { "start": 120.0, "end": 124.0 },
+    { "start": 300.0, "end": 303.0, "audioFrom": 124.0 },
+    { "start": 310.0, "end": 313.0, "audioFrom": 127.0, "cropMode": "left-third" },
+    { "start": 130.0, "end": 138.0 }
+  ],
+  "layout": "blur-background",
+  "captionPreset": "clean",
+  "transitionPreset": "fade",
+  "reasoning": "The speaker's line runs unbroken; the middle shows what they describe (B-roll from later in the video) under their own voice, then back to their face for the conclusion."
+}

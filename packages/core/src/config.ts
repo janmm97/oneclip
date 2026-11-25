@@ -4,6 +4,9 @@ import { join, resolve } from "node:path";
 /** Cheap models with JSON output for edit plans, tried in order by OpenRouter. Override with ONECLIP_OPENROUTER_MODELS. */
 export const DEFAULT_OPENROUTER_MODELS = ["deepseek/deepseek-v4-flash", "tencent/hy4-flash", "openai/gpt-6-luna"];
 
+/** Cheap image-reading models on OpenRouter (listed by its models API on 2026-11-25). Override with ONECLIP_VISION_OPENROUTER_MODELS. */
+export const DEFAULT_VISION_MODELS = ["qwen/qwen3.7-flash", "google/gemma-3-12b-it", "openai/gpt-5-nano"];
+
 /** All runtime settings come from env vars (see .env.example). None of them is a secret. */
 export function config(env: NodeJS.ProcessEnv = process.env) {
   const dataDir = resolve(env.ONECLIP_DATA_DIR || join(findRoot(), ".oneclip"));
@@ -19,6 +22,12 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     typesafeKey: env.ONE_TYPESAFE_KEY || undefined,
     openrouterKey: env.ONE_OPENROUTER_KEY || undefined,
     openrouterModels: list(env.ONECLIP_OPENROUTER_MODELS, 3) ?? DEFAULT_OPENROUTER_MODELS,
+    /** OpenAI-compatible local server with a vision model (LM Studio's default address). */
+    visionUrl: env.ONECLIP_VISION_URL || "http://localhost:1234/v1",
+    /** The local vision model; empty: the first vision model LM Studio has. */
+    visionModel: env.ONECLIP_VISION_MODEL || undefined,
+    /** Vision models tried in order on OpenRouter (only when vision is set to openrouter). */
+    visionModels: list(env.ONECLIP_VISION_OPENROUTER_MODELS, 3) ?? DEFAULT_VISION_MODELS,
     claudeBin: env.CLAUDE_BIN || "claude",
     opencodeBin: env.OPENCODE_BIN || "opencode",
     ffmpeg: env.FFMPEG_BIN || "ffmpeg",
