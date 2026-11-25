@@ -96,7 +96,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
               durationInFrames={planVideoConfig(clip.plan).durationInFrames}
               controls
               acknowledgeRemotionLicense
-              style={{ width: "100%", aspectRatio: "9 / 16", borderRadius: 8, overflow: "hidden", background: "black" }}
+              style={{ width: "100%", aspectRatio: `${planVideoConfig(clip.plan).width} / ${planVideoConfig(clip.plan).height}`, borderRadius: 8, overflow: "hidden", background: "black" }}
             />
           ) : (
             <div className="grid aspect-9/16 place-items-center rounded-lg bg-bg p-4 text-center text-xs text-muted">{clip.planError ?? "No edit plan for this clip."}</div>

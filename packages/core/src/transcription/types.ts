@@ -22,6 +22,8 @@ export interface TranscribeOptions {
   task?: "transcribe" | "translate";
   device?: "auto" | "cpu" | "cuda";
   onProgress?: (fraction: number) => void;
+  /** New words, in order, as soon as the engine has them (before the transcript is done). */
+  onWords?: (words: Word[]) => void;
 }
 
 /** Turns a 16 kHz mono WAV into words with timestamps. Runs locally; nothing is uploaded. */

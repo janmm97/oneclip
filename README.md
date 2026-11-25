@@ -88,6 +88,8 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
    - **English (translated when needed)**, the default. For a link, OneClip uses the site's English subtitles when it has them (a K-pop video's official English lyrics, for example); otherwise Whisper translates the audio into English on your machine.
    - **Original language**: captions in the language that's spoken or sung.
    - **No captions**.
+
+   **Content type** is **Auto-detect** by default. OneClip works out what the source is (music video, song, podcast or interview, talk or tutorial, live stream, gameplay, film or sketch, vlog, sports, or footage) from the page's title, tags and category and from the sound and picture. Each type tells Jev what the best clip looks like: the chorus or drop of a song, the payoff of a podcast story, the clutch play in gameplay. In a music video, OneClip finds where the song itself plays and which lyric repeats (the chorus). A spoken skit, intro or outro outside the song isn't picked, and if it is, it scores lower. Openings that are greetings or sponsor reads score lower in every type. If the guess is wrong, pick the type yourself. The project page shows what was detected, for example "Detected: Music video · song 1:08–4:48 · chorus at 1:42, 2:44, 4:17".
 3. **Processing** shows each stage live: probe, audio, transcribe, signals, candidates, Jev, plan. Talks, podcasts, songs, music videos, film scenes and silent footage all work: videos with no sound get a silent track and skip transcription. You can close the tab; the worker keeps going and resumes after a restart.
 4. **Hook results** lists the clips ranked by Jev. Pick one to see a live caption preview, the hook type, every score with its weight, any penalties and the transcript. Choose "Quick preview" (fast, low resolution) or "Render 1080p", and rate the pick good, average or bad. Ratings stay on your machine and feed `pnpm eval:hooks --feedback`.
 5. **Exports** plays every finished MP4, with a download link for each and "Download all (zip)".
@@ -100,7 +102,9 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 |---|---|
 | `pnpm run setup [--skip-python] [--model base]` | First-run setup (see above) |
 | `pnpm run doctor [--test-jev]` | Checks Node, FFmpeg, libass, One, TypeSafe, Jev, transcription, editing agent, Remotion |
-| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--no-render]` | The whole pipeline without the UI |
+| `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--content auto\|music_video\|podcast\|gameplay\|…] [--no-render]` | The whole pipeline without the UI |
+| `pnpm clip <video> --vision auto\|local\|openrouter\|off` | How shots are described (see [Editing with your agent](#editing-with-your-agent)) |
+| `pnpm run edit --plan edit.json (--project <id> \| --source video.mp4) [--ratio 9:16,16:9] [--quality preview] [--dry-run]` | Render an edit plan your agent (or you) wrote: shot order, borrowed audio, speed, mutes, audio bed |
 | `pnpm eval:hooks [--dry] [--feedback] [--json]` | Runs Jev over `datasets/` and reports precision@K, ranking agreement, strong-hook recall and false-positive rate |
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
 | `pnpm test` · `pnpm lint` · `pnpm build` | Unit and integration tests · type checks · production build |
@@ -162,9 +166,31 @@ The planner turns a ranked clip into an `EditPlan`: template, layout, crop, capt
 
 If an agent's output doesn't validate, OneClip falls back to the template planner and shows why in the results.
 
+### Editing with your agent
+
+OneClip saves what it saw and heard in each project folder (`.oneclip/projects/<id>/`), so Claude Code, OpenCode or any agent can re-cut a clip like an editor would:
+
+- `scenes.json`: every shot with its times and, when a vision model ran, what's on screen and what happens;
+- `frames/` and `sheets/`: one frame per shot and 4×4 contact sheets;
+- `transcript.json`: every word with its time;
+- `hooks.live.jsonl`: Jev's hook scores.
+
+Shots are described by the `vision` setting:
+
+| `vision` | Who describes the shots | Cost |
+|---|---|---|
+| `auto` (default) | A local vision model in [LM Studio](https://lmstudio.ai) if one is downloaded, otherwise nobody | Free |
+| `local` | LM Studio or any OpenAI-compatible server (`ONECLIP_VISION_URL`, `ONECLIP_VISION_MODEL`) | Free, nothing leaves your PC |
+| `openrouter` | Vision models through your One OpenRouter connection | Paid per frame |
+| `off` | Nobody: your agent reads the contact sheets itself | Free |
+
+Measured: `qwen/qwen3.5-4b` in LM Studio described 8 shots of a 89 s gameplay video in 101 s on an RTX 3050 Laptop GPU (4 GB). It got the setting and main events right, and misnamed some small objects.
+
+Give your agent the skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md): it teaches pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`. In Claude Code, copy the folder to `.claude/skills/oneclip-editor/`, or just say "follow skills/oneclip-editor/SKILL.md".
+
 ## Rendering
 
-- **Remotion** (default): animated word-by-word captions, title card and the three templates, rendered headless with Chrome Headless Shell (downloaded once, ~131 MB). Measured: about 107 s for a 46 s clip at 1080×1920 on CPU.
+- **Remotion** (default): animated word-by-word captions, title card and the three templates, rendered headless with Chrome Headless Shell (downloaded once, ~131 MB). Measured: about 107 s for a 46 s clip at 1080×1920 on CPU. `pnpm install` installs the Remotion packages OneClip needs; it does **not** install Remotion's Claude Code plugin or agent skills. You only need those to write new templates. To add them, run `npx remotion skills add` in `packages/remotion` (see [Remotion agent skills](https://www.remotion.dev/docs/agents/skills)). Remotion is free for individuals and companies of up to 3 people; larger companies need a [company licence](https://www.remotion.dev/license).
 - **FFmpeg**: faster and lighter. Captions are burned in with ASS/libass. Use it on slower machines or if Chrome can't be downloaded.
 
 Every render is checked with FFprobe (size, duration, H.264 video, an audio track and audio/video drift). If the chosen renderer fails or its output doesn't pass the check, OneClip retries the clip with the FFmpeg renderer.

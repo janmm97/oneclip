@@ -18,6 +18,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
 
   const analyze = [...view.jobs].reverse().find((j) => j.kind === "analyze");
   const analyzing = view.project.status === "queued" || view.project.status === "running";
+  const detected = (view.project.sourceInfo as { content?: { summary: string; reasons: string[] } } | null)?.content;
 
   async function retry() {
     setRetrying(true);
@@ -32,6 +33,11 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight">{view.project.title}</h1>
           <p className="mt-1 truncate font-mono text-xs text-muted">{view.project.fileName || view.project.sourceUrl}</p>
+          {detected ? (
+            <p className="mt-1 truncate text-xs text-muted" title={detected.reasons.join("; ")}>
+              Detected: {detected.summary}
+            </p>
+          ) : null}
         </div>
         {view.project.status === "ready" ? (
           <ButtonLink href={`/projects/${id}/exports`}>

@@ -17,8 +17,10 @@ export function openDb(path: string): Db {
   raw.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON;");
   raw.exec(schema.DDL);
   // Databases made before link support lack source_url.
-  const cols = raw.prepare("PRAGMA table_info(projects)").all() as { name: string }[];
-  if (!cols.some((c) => c.name === "source_url")) raw.exec("ALTER TABLE projects ADD COLUMN source_url TEXT");
+  // Older databases lack columns added later (source links, ratios).
+  const has = (table: string, col: string) => (raw.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
+  if (!has("projects", "source_url")) raw.exec("ALTER TABLE projects ADD COLUMN source_url TEXT");
+  for (const t of ["jobs", "renders"]) if (!has(t, "ratio")) raw.exec(`ALTER TABLE ${t} ADD COLUMN ratio TEXT`);
   return drizzle(
     async (sql, params, method) => {
       const stmt = raw.prepare(sql);

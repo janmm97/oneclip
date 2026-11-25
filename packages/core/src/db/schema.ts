@@ -25,6 +25,8 @@ export const jobs = sqliteTable("jobs", {
   kind: text("kind").notNull(), // analyze | render
   clipId: text("clip_id"),
   quality: text("quality"),
+  /** Frame shape for a render job ("9:16" when empty). */
+  ratio: text("ratio"),
   status: text("status").notNull().default("queued"), // queued | running | done | failed
   stage: text("stage"),
   progress: real("progress").notNull().default(0),
@@ -60,6 +62,7 @@ export const renders = sqliteTable("renders", {
   projectId: text("project_id").notNull(),
   clipId: text("clip_id").notNull(),
   quality: text("quality").notNull(),
+  ratio: text("ratio"),
   renderer: text("renderer").notNull(),
   path: text("path").notNull(),
   thumbPath: text("thumb_path"),
@@ -88,12 +91,12 @@ export const jevCache = sqliteTable("jev_cache", {
 
 export const DDL = `
 CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, youtube_url TEXT, youtube_meta TEXT, source_path TEXT NOT NULL, source_url TEXT, source_info TEXT, settings TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', transcriber TEXT, error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, clip_id TEXT, quality TEXT, status TEXT NOT NULL DEFAULT 'queued', stage TEXT, progress REAL NOT NULL DEFAULT 0, message TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, clip_id TEXT, quality TEXT, ratio TEXT, status TEXT NOT NULL DEFAULT 'queued', stage TEXT, progress REAL NOT NULL DEFAULT 0, message TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
 CREATE TABLE IF NOT EXISTS transcripts (cache_key TEXT PRIMARY KEY, engine TEXT NOT NULL, model TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, rank INTEGER NOT NULL, candidate TEXT NOT NULL, evaluation TEXT NOT NULL, plan TEXT, planner TEXT, plan_error TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS clips_project ON clips(project_id, rank);
-CREATE TABLE IF NOT EXISTS renders (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, quality TEXT NOT NULL, renderer TEXT NOT NULL, path TEXT NOT NULL, thumb_path TEXT, status TEXT NOT NULL, verify TEXT, error TEXT, ms INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS renders (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, quality TEXT NOT NULL, ratio TEXT, renderer TEXT NOT NULL, path TEXT NOT NULL, thumb_path TEXT, status TEXT NOT NULL, verify TEXT, error TEXT, ms INTEGER, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS jev_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, rating TEXT NOT NULL, note TEXT, created_at INTEGER NOT NULL);
 `;

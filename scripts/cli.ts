@@ -5,6 +5,9 @@
  *             [--transcriber auto|faster-whisper|whisper-onnx] [--model small]
  *             [--planner auto|openrouter|claude-code|opencode|template]
  *             [--captions english|original|off]
+ *             [--content auto|music_video|song|podcast|talk|stream|gameplay|film|vlog|sports|footage]
+ *             [--vision auto|local|openrouter|off (who describes each scene; openrouter is paid)]
+ *             [--ratio 9:16|1:1|4:5|16:9|4:3 (comma-separated for several, e.g. 9:16,16:9)]
  *             [--renderer remotion|ffmpeg] [--quality final|preview] [--no-render]
  */
 import { resolve } from "node:path";
@@ -23,6 +26,9 @@ const { values, positionals } = parseArgs({
     planner: { type: "string", default: "auto" },
     renderer: { type: "string", default: "remotion" },
     captions: { type: "string", default: "english" },
+    content: { type: "string", default: "auto" },
+    vision: { type: "string", default: "auto" },
+    ratio: { type: "string", default: "9:16" },
     quality: { type: "string", default: "final" },
     "no-render": { type: "boolean", default: false },
   },
@@ -80,6 +86,9 @@ const { projectId } = await createProject(deps, {
     planner: values.planner as never,
     renderer: values.renderer as never,
     captions: values.captions as never,
+    content: values.content as never,
+    vision: values.vision as never,
+    ratios: values.ratio.split(",").map((r) => r.trim()) as never,
   },
 });
 console.log(`Project ${projectId}`);
@@ -87,6 +96,8 @@ await drain(projectId);
 
 const analysed = await db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
 if (analysed?.transcriber) console.log(`Transcript: ${analysed.transcriber}`);
+const detected = (analysed?.sourceInfo as { content?: { summary: string; reasons: string[] } } | null)?.content;
+if (detected) console.log(`Content: ${detected.summary} (${detected.reasons.join("; ")})`);
 const clips = await db.select().from(schema.clips).where(eq(schema.clips.projectId, projectId)).orderBy(asc(schema.clips.rank)).all();
 for (const c of clips) {
   const cand = c.candidate as { start: number; end: number; openingText: string };
