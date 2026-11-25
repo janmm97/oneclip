@@ -1,0 +1,15 @@
+{
+  "title": "One day in 20 seconds",
+  "segments": [
+    { "start": 15.0, "end": 17.0, "muted": true },
+    { "start": 64.0, "end": 66.0, "muted": true },
+    { "start": 140.0, "end": 144.0, "muted": true, "speed": 2 },
+    { "start": 201.0, "end": 203.5, "muted": true },
+    { "start": 260.0, "end": 263.0, "muted": true },
+    { "start": 330.0, "end": 336.0 }
+  ],
+  "bed": { "start": 400.0, "volume": 0.8, "duck": 0.25 },
+  "captionPreset": "karaoke",
+  "transitionPreset": "none",
+  "reasoning": "Quick muted shots on the beat of the song from the video's own soundtrack, a sped-up stretch for pace, then the last shot keeps its sound so the closing line is heard over the ducked music."
+}

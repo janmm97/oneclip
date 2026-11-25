@@ -2,7 +2,7 @@
  * Render an edit an agent (or you) wrote by hand: shots in any order, sound
  * borrowed from other moments, speed changes, mutes and an audio bed.
  *
- *   pnpm edit --plan edit.json (--project <id> | --source video.mp4 [--words transcript.json])
+ *   pnpm run edit --plan edit.json (--project <id> | --source video.mp4 [--words transcript.json])
  *             [--ratio 9:16,16:9] [--quality final|preview] [--renderer remotion|ffmpeg]
  *             [--out folder] [--dry-run]
  *
@@ -55,7 +55,7 @@ const fail = (msg: string): never => {
   console.error(msg);
   process.exit(2);
 };
-if (!values.plan || (!values.project && !values.source)) fail("Usage: pnpm edit --plan edit.json (--project <id> | --source video.mp4) [options]   (see scripts/edit.ts)");
+if (!values.plan || (!values.project && !values.source)) fail("Usage: pnpm run edit --plan edit.json (--project <id> | --source video.mp4) [options]   (see scripts/edit.ts)");
 const ratios = (values.ratio ?? "9:16").split(",").map((r) => r.trim());
 for (const r of ratios) if (!(RATIOS as readonly string[]).includes(r)) fail(`Unknown ratio ${r}. Use ${RATIOS.join(", ")}.`);
 const quality = values.quality === "preview" ? "preview" : "final";
