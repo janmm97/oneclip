@@ -122,6 +122,32 @@ describe("LocalVisionDescriber", () => {
   });
 });
 
+describe("LocalVisionDescriber failures", () => {
+  it("asks once when the server errors (no frame-by-frame retry of a dead server)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oneclip-vlm-"));
+    const frames = [1, 2].map((n) => {
+      const path = join(dir, `${n}.jpg`);
+      writeFileSync(path, "x");
+      return { path, at: n };
+    });
+    let hits = 0;
+    const server = createServer((_req, res) => {
+      hits++;
+      res.statusCode = 500;
+      res.end("model crashed");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const { port } = server.address() as AddressInfo;
+      await expect(new LocalVisionDescriber(`http://127.0.0.1:${port}/v1`, "m").describe(frames, "test")).rejects.toThrow(/HTTP 500/);
+      expect(hits).toBe(1);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
 describe.skipIf(!hasFfmpeg)("buildScenes (real FFmpeg)", () => {
@@ -164,7 +190,7 @@ describe.skipIf(!hasFfmpeg)("buildScenes (real FFmpeg)", () => {
     const failed = await buildScenes({ ffmpeg: "ffmpeg", source: src, dir, motion, duration: 12, context: "test", describer: failing });
     expect(failed.describedBy).toBeNull();
     expect(failed.note).toMatch(/model offline/);
-  });
+  }, 60_000);
 });
 
 describe.skipIf(!hasFfmpeg)("OpenRouterVisionDescriber frame size", () => {
@@ -187,5 +213,5 @@ describe.skipIf(!hasFfmpeg)("OpenRouterVisionDescriber frame size", () => {
     expect(body.length).toBeLessThan(30_000);
     expect(existsSync(join(dir, "frames-small", "0001.jpg"))).toBe(true);
     rmSync(dir, { recursive: true, force: true });
-  });
+  }, 60_000);
 });

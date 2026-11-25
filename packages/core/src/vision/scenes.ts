@@ -153,8 +153,10 @@ export class LocalVisionDescriber implements SceneDescriber {
   }
 
   async describe(frames: { path: string; at: number }[], context: string): ReturnType<SceneDescriber["describe"]> {
+    // A dead server or a timeout fails once; only a garbled reply is worth asking again.
+    const reply = await this.ask(frames, context);
     try {
-      return parseReply(await this.ask(frames, context), frames.length);
+      return parseReply(reply, frames.length);
     } catch (e) {
       // One garbled batch reply shouldn't lose every frame in it: ask frame by frame.
       if (frames.length === 1) throw e;
