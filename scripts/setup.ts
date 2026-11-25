@@ -4,6 +4,7 @@
  * 2. If a Python 3.10–3.12 is found, installs faster-whisper (python/requirements.txt) for it.
  * 3. Makes sure yt-dlp is there (installs it with pip if not) so links from YouTube and other sites work.
  * 4. Pre-downloads the transcription model so the first job doesn't wait.
+ * 5. Installs the agent skills (scripts/install-skills.mjs) into .claude/skills and .agents/skills.
  * Never stores keys: One keeps its own credentials.
  */
 import { join } from "node:path";
@@ -88,6 +89,9 @@ if (t instanceof OnnxWhisperProvider) {
 } else {
   console.log("  faster-whisper downloads the model on the first transcription.");
 }
+
+step("Agent skills (oneclip-editor and the motion-graphics skills)");
+await runProcess(process.execPath, [join(findRoot(), "scripts", "install-skills.mjs")], { timeoutMs: 600_000, onStdout: (s) => void process.stdout.write(s) }).catch((e) => console.log(`  ${(e as Error).message}`));
 
 console.log(oneOk ? "\nSetup done. Run pnpm doctor, then pnpm dev." : "\nFix the One step above, then run pnpm run setup again.");
 process.exit(oneOk ? 0 : 1);

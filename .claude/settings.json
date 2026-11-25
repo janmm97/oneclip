@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/install-skills.mjs --if-missing",
+            "timeout": 600
+          }
+        ]
+      }
+    ]
+  }
+}

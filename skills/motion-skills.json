@@ -1,0 +1,22 @@
+{
+  "about": "Motion-graphics agent skills OneClip installs into .claude/skills and .agents/skills (list from trinhstudio.com/inside/claude-motion-graphics-repos-2026). These are third-party: OneClip fetches them from their own repos on your machine and does not ship or review them. Read each repo's licence before client work.",
+  "sources": [
+    { "id": "hyperframes", "repo": "heygen-com/hyperframes", "group": "render engine", "use": "Write HTML/CSS and render it to video (GSAP under the hood)", "license": "Apache-2.0" },
+    { "id": "remotion", "repo": "remotion-dev/remotion", "group": "render engine", "use": "Video in React (OneClip's caption renderer)", "license": "Remotion License (some companies need a paid licence)" },
+    { "id": "remotion-skills", "repo": "remotion-dev/skills", "group": "render engine", "use": "Remotion's official agent skills", "license": "see repo" },
+    { "id": "animate", "repo": "cth9191/animate", "group": "video skill", "use": "Story, style and storyboard first, preset styles, music sync", "license": "see repo" },
+    { "id": "claude-motion", "repo": "whaleyxbt/claude-motion", "group": "video skill", "use": "Motion design rules; reviews its own rendered frames", "license": "see repo" },
+    { "id": "claude-motion-design", "repo": "howseen-ai/claude-motion-design", "group": "video skill", "use": "Lean HTML + Playwright + FFmpeg motion stack", "license": "see repo" },
+    { "id": "product-launch-motion", "repo": "AbubakrChan/product-launch-motion", "group": "video skill", "use": "Launch films: camera moves, grading, beat-synced sound, motion blur", "license": "see repo" },
+    { "id": "motion-graphics-skills", "repo": "charlie947/motion-graphics-skills", "group": "video skill", "use": "Launch videos for apps, courses and digital products", "license": "see repo" },
+    { "id": "claude-remotion-skill", "repo": "haidrrrry/claude-remotion-skill", "group": "video skill", "use": "Remotion editing: captions, B-roll and sound from one prompt", "license": "see repo" },
+    { "id": "barty-motion-graphics", "repo": "Barty-Bart/motion-graphics", "group": "video skill", "use": "B-roll from a talking-head transcript", "license": "see repo" },
+    { "id": "hyperframes-motion-reel", "repo": "Sunwood-ai-labs/hyperframes-motion-reel-skill", "group": "video skill", "use": "Beat-cut showreels, teasers and social reels", "license": "see repo" },
+    { "id": "lottiefiles-motion-design", "repo": "LottieFiles/motion-design-skill", "group": "motion taste", "use": "Timing, easing, sequencing, the 12 animation principles", "license": "see repo" },
+    { "id": "iart-motion-design", "repo": "iart-ai/motion-design-skills", "group": "motion taste", "use": "Timing, colour, typography, layout, logo animation", "license": "see repo" },
+    { "id": "awesome-motion-design", "repo": "frankxai/awesome-motion-design-agent-skills", "group": "motion taste", "use": "Curated map of GSAP, Motion, Remotion, Lottie and Rive skills", "license": "see repo" },
+    { "id": "gsap", "repo": "greensock/GSAP", "group": "web animation", "use": "Timeline animation library", "license": "see repo" },
+    { "id": "motion", "repo": "motiondivision/motion", "group": "web animation", "use": "React micro-interactions (formerly Framer Motion)", "license": "see repo" },
+    { "id": "lottie-web", "repo": "airbnb/lottie-web", "group": "web animation", "use": "Lightweight vector animations for web and apps", "license": "see repo" }
+  ]
+}
