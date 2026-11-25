@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { config, findRoot } from "../config.ts";
 import { runProcess } from "../proc.ts";
-import { TranscriptSchema, type ModelSize, type TranscribeOptions, type Transcript, type TranscriptionProvider } from "./types.ts";
+import { z } from "zod";
+import { TranscriptSchema, WordSchema, type ModelSize, type TranscribeOptions, type Transcript, type TranscriptionProvider } from "./types.ts";
 
 /** faster-whisper via python/transcribe.py. The default engine. */
 export class FasterWhisperProvider implements TranscriptionProvider {
@@ -24,19 +25,30 @@ export class FasterWhisperProvider implements TranscriptionProvider {
     const args = [this.script, "--input", wavPath, "--model", opts.model, "--device", opts.device ?? "auto"];
     if (opts.language) args.push("--language", opts.language);
     if (opts.task === "translate") args.push("--task", "translate");
-    const r = await runProcess(this.python, args, {
-      timeoutMs: 4 * 60 * 60_000,
-      onStderr: (chunk) => {
-        const m = [...chunk.matchAll(/PROGRESS ([\d.]+)/g)].pop();
-        if (m) opts.onProgress?.(Number(m[1]));
-      },
+    const lines = lineReader((line) => {
+      if (line.startsWith("PROGRESS ")) opts.onProgress?.(Number(line.slice(9)));
+      else if (line.startsWith("WORDS ") && opts.onWords) {
+        const w = z.array(WordSchema).safeParse(safeJson(line.slice(6)));
+        if (w.success && w.data.length) opts.onWords(w.data);
+      }
     });
+    const r = await runProcess(this.python, args, { timeoutMs: 4 * 60 * 60_000, onStderr: lines });
     if (r.code !== 0) {
       const err = safeJson(r.stdout)?.error;
       throw new Error(`faster-whisper failed: ${err ?? r.stderr.slice(-800)}`);
     }
     return TranscriptSchema.parse(JSON.parse(r.stdout));
   }
+}
+
+/** Calls `onLine` for each complete line across chunk boundaries. */
+export function lineReader(onLine: (line: string) => void): (chunk: string) => void {
+  let rest = "";
+  return (chunk) => {
+    const parts = (rest + chunk).split(/\r?\n/);
+    rest = parts.pop() ?? "";
+    for (const p of parts) onLine(p.trim());
+  };
 }
 
 function safeJson(s: string): { error?: string } | undefined {
@@ -97,11 +109,13 @@ export class OnnxWhisperProvider implements TranscriptionProvider {
       const out = (await asr(slice, { return_timestamps: "word", language: opts.language ?? "en", task: opts.task ?? "transcribe" })) as {
         chunks?: { text: string; timestamp: [number, number | null] }[];
       };
+      const before = words.length;
       for (const c of out.chunks ?? []) {
         const word = c.text.trim();
         if (!word) continue;
         words.push({ word, start: base + c.timestamp[0], end: base + (c.timestamp[1] ?? c.timestamp[0] + 0.3) });
       }
+      if (words.length > before) opts.onWords?.(words.slice(before));
       opts.onProgress?.(Math.min(1, (off + win) / audio.length));
     }
     return { engine: this.name, model: repo.split("/")[1] ?? repo, language: opts.language ?? "en", duration: audio.length / 16_000, words };

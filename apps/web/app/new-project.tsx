@@ -1,6 +1,6 @@
 "use client";
 
-import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, type YouTubeMeta } from "@oneclip/core/browser";
+import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, RATIO_LABELS, RATIOS, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
 import { Link2, Play } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -25,13 +25,19 @@ const PLANNERS = [
   ["opencode", "OpenCode"],
   ["template", "Template (no agent)"],
 ] as const;
+const VISION = [
+  ["auto", "Auto (local model if found)"],
+  ["local", "Local model (LM Studio)"],
+  ["openrouter", "OpenRouter via One (paid)"],
+  ["off", "Off (frames only)"],
+] as const;
 
 export function NewProject() {
   const router = useRouter();
   const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
   const [authorized, setAuthorized] = useState(false);
-  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto" });
+  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto", vision: "auto", ratios: ["9:16"] as Ratio[] });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
@@ -126,7 +132,29 @@ export function NewProject() {
         <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
+        <Field label="Scene vision" hint="Describes what happens in each shot (the play, the product, who's on screen) so Jev and your agent can pick and mix scenes. Auto uses a vision model in LM Studio on this computer if one is there. OpenRouter sends one small frame per shot and costs a little per video. Off still saves frames and contact sheets for your agent.">
+          <Select options={VISION} value={s.vision} onChange={(e) => setS({ ...s, vision: e.target.value })} />
+        </Field>
       </div>
+
+      <fieldset className="grid gap-2">
+        <legend className="text-sm font-medium">Frame ratios</legend>
+        <p className="text-xs text-muted">Each clip renders once per ratio you tick. Pick 9:16 for phones and 16:9 for desktop.</p>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          {RATIOS.map((r) => (
+            <label key={r} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={s.ratios.includes(r)}
+                disabled={s.ratios.length === 1 && s.ratios.includes(r)}
+                onChange={(e) => setS({ ...s, ratios: e.target.checked ? [...s.ratios, r] : s.ratios.filter((x) => x !== r) })}
+                className="size-4 accent-(--color-tally)"
+              />
+              {RATIO_LABELS[r]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} className="mt-0.5 size-4 accent-(--color-tally)" />

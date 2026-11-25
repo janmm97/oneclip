@@ -6,6 +6,8 @@
  *             [--planner auto|openrouter|claude-code|opencode|template]
  *             [--captions english|original|off]
  *             [--content auto|music_video|song|podcast|talk|stream|gameplay|film|vlog|sports|footage]
+ *             [--vision auto|local|openrouter|off (who describes each scene; openrouter is paid)]
+ *             [--ratio 9:16|1:1|4:5|16:9|4:3 (comma-separated for several, e.g. 9:16,16:9)]
  *             [--renderer remotion|ffmpeg] [--quality final|preview] [--no-render]
  */
 import { resolve } from "node:path";
@@ -25,6 +27,8 @@ const { values, positionals } = parseArgs({
     renderer: { type: "string", default: "remotion" },
     captions: { type: "string", default: "english" },
     content: { type: "string", default: "auto" },
+    vision: { type: "string", default: "auto" },
+    ratio: { type: "string", default: "9:16" },
     quality: { type: "string", default: "final" },
     "no-render": { type: "boolean", default: false },
   },
@@ -83,6 +87,8 @@ const { projectId } = await createProject(deps, {
     renderer: values.renderer as never,
     captions: values.captions as never,
     content: values.content as never,
+    vision: values.vision as never,
+    ratios: values.ratio.split(",").map((r) => r.trim()) as never,
   },
 });
 console.log(`Project ${projectId}`);

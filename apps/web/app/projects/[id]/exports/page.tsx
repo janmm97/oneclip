@@ -53,11 +53,13 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
                 controls
                 preload="none"
                 playsInline
-                className="aspect-9/16 w-full bg-black object-contain"
+                style={{ aspectRatio: (r.ratio ?? "9:16").replace(":", " / ") }}
+                className="w-full bg-black object-contain"
               />
               <div className="flex min-w-0 items-center gap-2 p-3 text-sm">
                 <span className="num font-medium">#{rankOf(r.clipId) ?? "?"}</span>
                 <Badge tone={r.quality === "final" ? "good" : "neutral"}>{r.quality === "final" ? "1080p" : "preview"}</Badge>
+                <span className="num text-xs text-muted">{r.ratio ?? "9:16"}</span>
                 <span className="hidden text-xs text-muted sm:inline">{r.renderer}</span>
                 <a href={`/api/media/render/${r.id}?download=1`} className="ml-auto rounded p-1 text-muted hover:bg-raised hover:text-fg" aria-label="Download">
                   <Download className="size-4" aria-hidden />

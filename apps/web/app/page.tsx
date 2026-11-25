@@ -18,7 +18,7 @@ export default async function Home() {
         <h1 className="text-2xl font-semibold tracking-tight">Find the clips worth posting</h1>
         <p className="mt-1 max-w-prose text-sm text-muted">
           Point OneClip at a video you own. It transcribes it locally, asks Jev to score every complete thought for hook strength, clarity and payoff,
-          then renders the best ones as 1080×1920 clips.
+          then renders the best ones as 1080p clips in the frame ratios you pick (9:16, 1:1, 4:5, 16:9, 4:3).
         </p>
         <NewProject />
       </section>

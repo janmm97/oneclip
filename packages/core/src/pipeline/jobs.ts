@@ -2,10 +2,11 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, gte, inArray } from "drizzle-orm";
 import type { Db } from "../db/index.ts";
 import { jobs, projects } from "../db/schema.ts";
+import type { Ratio } from "../plan/schema.ts";
 
 export type Job = typeof jobs.$inferSelect;
 
-export async function enqueue(db: Db, job: { projectId: string; kind: "analyze" | "render"; clipId?: string; quality?: "final" | "preview" }): Promise<string> {
+export async function enqueue(db: Db, job: { projectId: string; kind: "analyze" | "render"; clipId?: string; quality?: "final" | "preview"; ratio?: Ratio }): Promise<string> {
   const id = randomUUID();
   await db.insert(jobs).values({ id, ...job, status: "queued", message: "Waiting to start" });
   return id;
