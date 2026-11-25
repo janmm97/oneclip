@@ -22,6 +22,7 @@ import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
 import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
+import { buildScenes, withScenes, type Scene, type SceneDescriber } from "../vision/scenes.ts";
 import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
 
@@ -31,6 +32,8 @@ export interface PipelineDeps {
   transcriber(settings: ProjectSettings): Promise<TranscriptionProvider>;
   evaluator(cache: JevCache): HookEvaluator;
   planner(settings: ProjectSettings): Promise<EditingPlanner>;
+  /** The vision model that describes each shot; none: frames and contact sheets only. */
+  describer?(settings: ProjectSettings): Promise<SceneDescriber | undefined>;
   renderers: Partial<Record<ProjectSettings["renderer"], VideoRenderer>>;
 }
 
@@ -161,6 +164,23 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
     const kind = profile.type === "music_video" || profile.type === "song" ? "music" : heard;
     return { signals, profile, kind };
   };
+  // What's on screen, shot by shot, also while Whisper runs. The context comes
+  // from the page only (not the words), so live and final Jev requests match.
+  let scenesDone = "";
+  const scenesP = signalsP
+    .then(async (s) =>
+      buildScenes({
+        ffmpeg: cfg.ffmpeg,
+        source,
+        dir,
+        motion: s.motion,
+        duration: info.duration,
+        context: `Source: "${meta.title.slice(0, 120)}"${meta.site ? ` on ${meta.site}` : ""}${meta.categories.length ? ` (${meta.categories.slice(0, 3).join(", ")})` : ""}.`,
+        describer: await deps.describer?.(settings).catch(() => undefined),
+        onProgress: (d, t) => (scenesDone = ` · scenes ${d}/${t}`),
+      }),
+    )
+    .then((f) => f.scenes, () => [] as Scene[]);
   const videoId = project.youtubeMeta ? (project.youtubeMeta as YouTubeMeta).videoId : project.id;
   const max = settings.maxCandidates;
   const evaluator = deps.evaluator(dbJevCache(db));
@@ -195,7 +215,8 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
       prepare: async (cs, w) => {
         const { signals, profile, kind } = await profileOf(w);
         if (kind !== "speech") return [];
-        return cs.filter((c) => !outsideMain(profile, c)).map((c) => withContent(attachMedia(c, signals, kind), profile));
+        const scenes = await scenesP;
+        return cs.filter((c) => !outsideMain(profile, c)).map((c) => withScenes(withContent(attachMedia(c, signals, kind), profile), scenes));
       },
       onHook: (c, e) => {
         appendFileSync(hooksLog, `${JSON.stringify({ start: c.start, end: c.end, score: e.final, hookType: e.hookType, opening: c.openingText })}\n`, "utf8");
@@ -209,7 +230,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
       onProgress: (f) => {
         if (f - last >= 0.02 || f === 1) {
           last = f;
-          progressUpdate(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%${lastHook}` });
+          progressUpdate(db, job.id, { progress: 0.08 + f * 0.42, message: `Transcribing with ${provider.name}: ${Math.round(f * 100)}%${scenesDone}${lastHook}` });
         }
       },
     });
@@ -235,6 +256,10 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   const content = { type: profile.type, label: CONTENT_TYPES[profile.type].label, summary: describeProfile(profile), confidence: profile.confidence, reasons: profile.reasons };
   await db.update(projects).set({ sourceInfo: { ...info, content } }).where(eq(projects.id, project.id));
 
+  await stage("scenes", 0.51, `Looking at the scenes${scenesDone}`);
+  const timer = setInterval(() => void progressUpdate(db, job.id, { progress: 0.51, message: `Looking at the scenes${scenesDone}` }), 2000);
+  const scenes = await scenesP.finally(() => clearInterval(timer));
+
   await stage("candidates", 0.52, `Finding the best parts of a ${content.label.toLowerCase()} (${content.summary})`);
   // Sentences only when there is real speech; moments always, from sound and picture.
   // In a song, only passages inside the song itself (not a skit before or after it).
@@ -242,7 +267,7 @@ export async function runAnalyze(deps: PipelineDeps, job: Job): Promise<void> {
   const spoken = transcript.words.length < 20 ? [] : reader ? await reader.finish(transcript.words) : findCandidates(videoId, transcript.words, settings.preset, { maxCandidates: max });
   const sentences = spoken.filter((c) => !outsideMain(profile, c));
   const moments = findMoments(videoId, signals, transcript.words, settings.preset, kind, max, info.duration, profile);
-  const candidates = mixCandidates(sentences, moments, kind, max, CONTENT_TYPES[profile.type].share).map((c) => withContent(attachMedia(c, signals, kind), profile));
+  const candidates = mixCandidates(sentences, moments, kind, max, CONTENT_TYPES[profile.type].share).map((c) => withScenes(withContent(attachMedia(c, signals, kind), profile), scenes));
   if (!candidates.length) throw new Error("No moments of the chosen length were found. Try a shorter duration preset.");
 
   await stage("jev", 0.55, `Ranking ${candidates.length} candidates with Jev${reader?.hooks.length ? ` (${reader.hooks.length} already read live)` : ""}`);

@@ -296,12 +296,15 @@ export class OneClient {
 
 export interface OpenRouterChatRequest {
   models: string[];
-  messages: { role: "system" | "user"; content: string }[];
+  messages: { role: "system" | "user"; content: string | ChatPart[] }[];
   response_format?: { type: "json_object" };
   max_completion_tokens?: number;
   temperature?: number;
   provider?: { require_parameters?: boolean };
 }
+
+/** OpenAI-style message parts: text, or an image as a data URL. */
+export type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 
 export interface OpenRouterChatResult {
   model: string;
