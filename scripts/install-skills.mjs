@@ -34,7 +34,9 @@ const onlyArg = args[args.indexOf("--only") + 1];
 const only = args.includes("--only") && onlyArg ? new Set(onlyArg.split(",")) : null;
 
 const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return null; } };
-const git = (cwd, ...a) => run("git", a, { cwd, timeout: 300_000, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout.trim());
+// A missing or renamed repo must fail fast, never wait on a username prompt or a credential pop-up.
+const GIT_ENV = { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never", GIT_LFS_SKIP_SMUDGE: "1" };
+const git = (cwd, ...a) => run("git", a, { cwd, env: GIT_ENV, timeout: 120_000, maxBuffer: 64 * 1024 * 1024 }).then((r) => r.stdout.trim());
 const hash = (f) => createHash("sha256").update(fs.readFileSync(f)).digest("hex");
 
 function main() {
@@ -88,7 +90,7 @@ async function install(previous) {
 
 async function fetchSource(s, tmp) {
   const dir = path.join(tmp, s.id);
-  await run("git", ["clone", "--depth", "1", "--filter=blob:none", "--no-checkout", "--quiet", `${BASE}/${s.repo}.git`, dir], { timeout: 300_000 });
+  await run("git", ["clone", "--depth", "1", "--filter=blob:none", "--no-checkout", "--quiet", `${BASE}/${s.repo}.git`, dir], { env: GIT_ENV, timeout: 120_000 });
   const commit = await git(dir, "rev-parse", "HEAD");
   const files = (await git(dir, "ls-tree", "-r", "--name-only", "HEAD")).split("\n");
   const skillDirs = [...new Set(files.filter((f) => /(^|\/)SKILL\.md$/.test(f) && !f.split("/").some((p) => SKIP_DIRS.has(p))).map((f) => path.posix.dirname(f)))];
@@ -101,6 +103,8 @@ async function fetchSource(s, tmp) {
 }
 
 function copySkill(src, name, owned, claimed, entry, prefix) {
+  // Folder names come from other people's repos and end up in paths and in agent context.
+  if (!/^\w[\w.-]*$/.test(name)) return console.log("  · skipped a skill with an unsafe folder name");
   const h = hash(path.join(src, "SKILL.md"));
   if (claimed.get(name) === h) return; // same skill shipped by two repos
   if (claimed.has(name) && prefix) name = `${prefix}-${name}`;
