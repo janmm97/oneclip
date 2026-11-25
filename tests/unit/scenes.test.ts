@@ -1,11 +1,11 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildScenes, type ClipCandidate, findShots, jevState, LocalVisionDescriber, parseReply, pickDescriber, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
+import { buildScenes, type ClipCandidate, findShots, jevState, LocalVisionDescriber, MAX_FRAME_BYTES, OpenRouterVisionDescriber, parseReply, pickDescriber, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
 
 describe("findShots", () => {
   it("cuts at scene changes and merges blips into the shot before", () => {
@@ -122,7 +122,7 @@ describe("LocalVisionDescriber", () => {
   });
 });
 
-const hasFfmpeg =spawnSync("ffmpeg", ["-version"]).status === 0;
+const hasFfmpeg = spawnSync("ffmpeg", ["-version"]).status === 0;
 
 describe.skipIf(!hasFfmpeg)("buildScenes (real FFmpeg)", () => {
   const dir = mkdtempSync(join(tmpdir(), "oneclip-scenes-"));
@@ -164,5 +164,28 @@ describe.skipIf(!hasFfmpeg)("buildScenes (real FFmpeg)", () => {
     const failed = await buildScenes({ ffmpeg: "ffmpeg", source: src, dir, motion, duration: 12, context: "test", describer: failing });
     expect(failed.describedBy).toBeNull();
     expect(failed.note).toMatch(/model offline/);
+  });
+});
+
+describe.skipIf(!hasFfmpeg)("OpenRouterVisionDescriber frame size", () => {
+  it("shrinks a busy frame until its base64 fits the One CLI command line", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "oneclip-fit-"));
+    mkdirSync(join(dir, "frames"));
+    const big = join(dir, "frames", "0001.jpg");
+    // Random noise barely compresses: a 384 px frame of it is far over the limit.
+    spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "nullsrc=s=384x216,geq=random(1)*255:128:128", "-frames:v", "1", "-q:v", "2", big]);
+    expect(statSync(big).size).toBeGreaterThan(MAX_FRAME_BYTES);
+    let body = "";
+    const one = {
+      openRouterChat: async (req: { messages: unknown[] }) => {
+        body = JSON.stringify(req);
+        return { content: '{"frames":[{"i":1,"description":"static"}]}', model: "m" };
+      },
+    };
+    const d = new OpenRouterVisionDescriber(one as never, ["m"], "ffmpeg");
+    expect(await d.describe([{ path: big, at: 1 }], "test")).toEqual([{ description: "static", action: undefined, tags: undefined }]);
+    expect(body.length).toBeLessThan(30_000);
+    expect(existsSync(join(dir, "frames-small", "0001.jpg"))).toBe(true);
+    rmSync(dir, { recursive: true, force: true });
   });
 });
