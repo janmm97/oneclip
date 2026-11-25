@@ -14,6 +14,33 @@ export const TEMPLATES = ["podcast-short", "educational-short", "storytelling-sh
 
 const Range = z.object({ start: z.number().nonnegative(), end: z.number().nonnegative() }).refine((r) => r.end > r.start, "end must be after start");
 
+/** Per-shot mixing controls shared by draft segments and plan cuts. */
+const MixFields = {
+  /** Play the audio from this source time instead of the shot's own (the audio length matches the shot). */
+  audioFrom: z.number().nonnegative().optional(),
+  /** Drop the shot's audio (the bed, if any, still plays). */
+  muted: z.boolean().optional(),
+  /** 0.5 = slow motion, 2 = double speed. Audio follows. */
+  speed: z.number().min(0.5).max(2).optional(),
+  /** Gain for this shot's audio. */
+  volume: z.number().min(0).max(2).optional(),
+  /** Reframe this shot differently from the clip default. */
+  cropMode: z.enum(CROP_MODES).optional(),
+};
+const Segment = z
+  .object({ start: z.number().nonnegative(), end: z.number().nonnegative(), ...MixFields })
+  .refine((r) => r.end > r.start, "end must be after start");
+const Bed = z.object({
+  start: z.number().nonnegative(),
+  end: z.number().nonnegative().optional(),
+  volume: z.number().min(0).max(1),
+  /** Lower the bed to this gain while someone speaks (0 = silence, 1 = no ducking). */
+  duck: z.number().min(0).max(1),
+});
+const Cut = z
+  .object({ start: z.number().nonnegative(), end: z.number().nonnegative(), ...MixFields })
+  .refine((r) => r.end > r.start, "end must be after start");
+
 /** What an editing agent may decide. OneClip fills in the rest. */
 export const PlanDraftSchema = z.object({
   template: z.enum(TEMPLATES),
@@ -31,8 +58,16 @@ export const PlanDraftSchema = z.object({
   emphasis: z.array(z.string().max(40)).max(30),
   title: z.string().max(80),
   reasoning: z.string().max(600),
+  /**
+   * Scene mixing (optional). Shots played in this order, which may jump back and
+   * forth or repeat. When set, it replaces `keep`/`removeSilences`.
+   */
+  segments: z.array(Segment).max(60).optional(),
+  /** An audio bed from another part of the source (music, crowd, ambience) under the whole clip. */
+  bed: Bed.optional(),
 });
 export type PlanDraft = z.infer<typeof PlanDraftSchema>;
+export type Segment = z.infer<typeof Segment>;
 
 export const CaptionWordSchema = z.object({ text: z.string(), start: z.number(), end: z.number(), emphasis: z.boolean() });
 export const CaptionSchema = z.object({ start: z.number(), end: z.number(), words: z.array(CaptionWordSchema) });
@@ -60,7 +95,11 @@ export const EditPlanSchema = z.object({
   template: z.enum(TEMPLATES),
   title: z.string().max(80),
   /** Source-time ranges kept, in order. */
-  cuts: z.array(Range).min(1).max(200),
+  cuts: z.array(Cut).min(1).max(200),
+  /** Audio bed, played from `start` in source time; `duckUnder` are output-time ranges with speech. */
+  bed: z
+    .object({ start: z.number().nonnegative(), end: z.number().positive(), volume: z.number().min(0).max(1), duck: z.number().min(0).max(1), duckUnder: z.array(Range).max(400) })
+    .optional(),
   captions: z.array(CaptionSchema).max(1000),
   zoomEvents: z.array(z.object({ at: z.number().nonnegative(), duration: z.number().positive().max(3), scale: z.number().min(1).max(1.3) })).max(50),
   audio: z.object({ normalize: z.boolean(), targetLufs: z.number().min(-24).max(-9) }),

@@ -293,7 +293,7 @@ export function buildProfile(meta: SourceMeta, s: MediaSignals, words: Word[], k
   return { ...d, main, choruses: findChoruses(words).filter(inSong), breaks };
 }
 
-const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+export const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const overlap = (a: Span, b: Span) => Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
 
 /** One line for the UI and CLI: "Music video · song 1:07–4:51 · chorus at 1:43, 2:41, 4:15". */
