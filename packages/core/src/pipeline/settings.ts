@@ -21,12 +21,14 @@ export const ProjectSettingsSchema = z.object({
   captions: z.enum(CAPTION_MODES).default("english"),
   /** What kind of source this is (music video, podcast, gameplay…). auto: detected from the page and the file. */
   content: z.enum(["auto", ...CONTENT_TYPE_KEYS]).default("auto"),
+  /** Who describes what's on screen: auto (a local LM Studio vision model if there is one), local, openrouter (paid, via One) or off. */
+  vision: z.enum(["auto", "local", "openrouter", "off"]).default("auto"),
   /** Frame shapes to render each clip in (one file per ratio). */
   ratios: z.array(z.enum(RATIOS)).min(1).max(RATIOS.length).default(["9:16"]).transform((r) => [...new Set(r)]),
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
-export const STAGES = ["download", "prepare", "probe", "audio", "transcribe", "signals", "candidates", "jev", "plan", "render"] as const;
+export const STAGES = ["download", "prepare", "probe", "audio", "transcribe", "signals", "scenes", "candidates", "jev", "plan", "render"] as const;
 export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABELS: Record<Stage, string> = {
@@ -36,6 +38,7 @@ export const STAGE_LABELS: Record<Stage, string> = {
   audio: "Extracting audio",
   transcribe: "Transcribing",
   signals: "Measuring sound and picture",
+  scenes: "Looking at the scenes",
   candidates: "Finding hooks and moments",
   jev: "Ranking hooks with Jev",
   plan: "Planning edits",
