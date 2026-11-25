@@ -15,6 +15,7 @@
     "worker": "tsx workers/media/index.ts",
     "setup": "tsx scripts/setup.ts",
     "doctor": "tsx scripts/doctor.ts",
+    "skills": "node scripts/install-skills.mjs",
     "clip": "tsx scripts/cli.ts",
     "edit": "tsx scripts/edit.ts",
     "eval:hooks": "tsx scripts/eval-hooks.ts",

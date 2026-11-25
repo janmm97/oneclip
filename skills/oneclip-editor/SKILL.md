@@ -123,12 +123,12 @@ Fix the plan and render again. Use `--quality preview` while you iterate.
 - Keep the source's meaning. Don't splice words to make someone say something they didn't.
 - Say what you did in `reasoning`, and tell the user which shots you used (source times) so they can check.
 
-## Optional: Remotion agent skills
+## Captions and motion graphics: use the motion skills
 
-To write new Remotion templates or animations (not needed for editing), install Remotion's own agent skills in your agent:
+OneClip installs a set of motion-graphics agent skills next to this one (`.claude/skills/`, `.agents/skills/`; list in `skills/motion-skills.json`). If they're missing, run `pnpm skills`. Use them whenever the user wants captions or graphics that look different from the three presets, or new animation:
 
-```bash
-cd packages/remotion && npx remotion skills add
-```
+- **Caption placement and style**: positions and sizes are in `CAPTION_STYLES` (`packages/core/src/render/ass.ts`, `y` is the caption's height on the frame, 0 = top, 1 = bottom), drawn by `Captions` in `packages/remotion/src/compositions/Clip.tsx`. Change them with the Remotion skills (`remotion-skills`, `claude-remotion-skill`). Keep captions out of the platform UI (roughly the top 10 % and bottom 20 % of a 9:16 frame), away from faces and on-screen text you can see in the frames, and make them readable on every ratio.
+- **Timing, easing and taste**: the LottieFiles and iart-ai motion-design skills, `claude-motion` (it reviews its own frames).
+- **Titles, launch films, reels, B-roll**: HyperFrames, `product-launch-motion`, `motion-graphics-skills`, the motion-reel and B-roll skills.
 
-See https://www.remotion.dev/docs/agents/skills. Remotion is free for individuals and companies of up to 3 people. Larger companies need a [company licence](https://www.remotion.dev/license).
+Render after each change and check the contact sheet (step 4). These skills are third-party: OneClip doesn't review them. Remotion is free for individuals and companies of up to 3 people; larger companies need a [company licence](https://www.remotion.dev/license).

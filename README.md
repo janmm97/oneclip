@@ -186,11 +186,29 @@ Shots are described by the `vision` setting:
 
 Measured: `qwen/qwen3.5-4b` in LM Studio described 8 shots of a 89 s gameplay video in 101 s on an RTX 3050 Laptop GPU (4 GB). It got the setting and main events right, and misnamed some small objects.
 
-Give your agent the skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md): it teaches pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`. In Claude Code, copy the folder to `.claude/skills/oneclip-editor/`, or just say "follow skills/oneclip-editor/SKILL.md".
+The skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md) teaches your agent pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`.
+
+## Agent skills
+
+Clone OneClip and your agent gets the `oneclip-editor` skill plus 17 motion-graphics repos (the list in [Claude motion graphics repos 2026](https://trinhstudio.com/inside/claude-motion-graphics-repos-2026)) for captions, titles and animation. OneClip installs every skill those repos ship into `.claude/skills/` and `.agents/skills/`:
+
+- **Claude Code** does it on the first session in the OneClip folder (a `SessionStart` hook in `.claude/settings.json`; Claude Code asks you to trust the folder first). If the skills don't show up in that first session, start a new one.
+- **Codex, OpenCode, Cursor and other agents**: [`AGENTS.md`](AGENTS.md) tells them to run `pnpm skills`. `pnpm run setup` runs it too.
+
+| Group | Repos |
+|---|---|
+| Render engines | HyperFrames (Apache-2.0), Remotion, Remotion skills |
+| Video skills | animate, claude-motion, claude-motion-design, product-launch-motion, motion-graphics-skills, claude-remotion-skill, motion-graphics (Barty-Bart), hyperframes-motion-reel-skill |
+| Motion taste | LottieFiles motion-design-skill, iart-ai motion-design-skills, awesome-motion-design-agent-skills |
+| Web animation | GSAP, Motion, lottie-web |
+
+Repos, links and pinned commits are in [`skills/motion-skills.json`](skills/motion-skills.json). `pnpm skills` installs or updates them, and `pnpm skills --only animate,gsap` installs just some. OneClip fetches each repo at its pinned commit and copies only the folders that have a `SKILL.md`, so libraries without agent skills (such as lottie-web) add nothing. What got installed is listed in `.claude/skills/.oneclip-skills.json`. It needs only Node and git. Set `ONECLIP_SKIP_SKILLS=1` to turn it off. Skills you already have with the same name are never overwritten. If a skill pre-approves tools or adds hooks (`allowed-tools` or `hooks` in its frontmatter), OneClip prints a warning.
+
+These skills are third-party. OneClip doesn't ship them: it fetches them from their own repos on your machine. Each one is pinned to a commit, so a later push upstream doesn't reach your agent until a OneClip PR moves the pin. To move the pins, run `pnpm skills --latest --pin`, review what changed upstream, then open a PR. `pnpm skills --latest` on its own installs each repo's newest commit without pinning it (unreviewed). Read a skill's scripts before you let an agent run them, and check each repo's licence before client work.
 
 ## Rendering
 
-- **Remotion** (default): animated word-by-word captions, title card and the three templates, rendered headless with Chrome Headless Shell (downloaded once, ~131 MB). Measured: about 107 s for a 46 s clip at 1080×1920 on CPU. `pnpm install` installs the Remotion packages OneClip needs; it does **not** install Remotion's Claude Code plugin or agent skills. You only need those to write new templates. To add them, run `npx remotion skills add` in `packages/remotion` (see [Remotion agent skills](https://www.remotion.dev/docs/agents/skills)). Remotion is free for individuals and companies of up to 3 people; larger companies need a [company licence](https://www.remotion.dev/license).
+- **Remotion** (default): animated word-by-word captions, title card and the three templates, rendered headless with Chrome Headless Shell (downloaded once, ~131 MB). Measured: about 107 s for a 46 s clip at 1080×1920 on CPU. `pnpm install` installs the Remotion packages OneClip needs; Remotion's agent skills come with the [agent skills](#agent-skills). Remotion is free for individuals and companies of up to 3 people; larger companies need a [company licence](https://www.remotion.dev/license).
 - **FFmpeg**: faster and lighter. Captions are burned in with ASS/libass. Use it on slower machines or if Chrome can't be downloaded.
 
 Every render is checked with FFprobe (size, duration, H.264 video, an audio track and audio/video drift). If the chosen renderer fails or its output doesn't pass the check, OneClip retries the clip with the FFmpeg renderer.

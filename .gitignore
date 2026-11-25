@@ -38,6 +38,11 @@ renders/
 *.key
 secrets.*
 
+# agent skills installed by `pnpm skills` (third-party, fetched on each machine)
+.claude/skills/
+.agents/skills/
+.claude/settings.local.json
+
 # OS / editors
 .DS_Store
 Thumbs.db
