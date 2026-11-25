@@ -8,6 +8,18 @@ import type { RenderJob, VideoRenderer } from "./types.ts";
 const CROP_X = { center: 0.5, "left-third": 0.2, "right-third": 0.8 } as const;
 const f = (n: number) => n.toFixed(3);
 
+/**
+ * The graph as FFmpeg arguments. A big scene mix (60 shots, 400 duck zones)
+ * makes a graph over Windows' 32,767-char command line, so a long graph goes
+ * through graph.txt in `workDir` (FFmpeg runs there) with `-/filter_complex`
+ * (FFmpeg 7+). Short graphs stay inline so older FFmpeg builds keep working.
+ */
+export function graphArgs(graph: string, workDir: string, max = 8000): string[] {
+  if (graph.length <= max) return ["-filter_complex", graph];
+  writeFileSync(join(workDir, "graph.txt"), graph, "utf8");
+  return ["-/filter_complex", "graph.txt"];
+}
+
 interface Range {
   start: number;
   end: number;
@@ -161,7 +173,7 @@ export class FfmpegRenderer implements VideoRenderer {
     const args = [
       "-y", "-hide_banner", "-v", "error", "-stats",
       ...windows.flatMap((w) => ["-ss", f(w.start), "-t", f(w.end - w.start), "-i", job.sourcePath]),
-      "-filter_complex", graph,
+      ...graphArgs(graph, job.workDir),
       "-map", "[vout]", "-map", "[aout]",
       "-c:v", "libx264", "-preset", final ? "medium" : "veryfast", "-crf", final ? "20" : "28",
       "-r", String(plan.output.fps),

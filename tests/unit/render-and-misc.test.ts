@@ -1,3 +1,5 @@
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -5,6 +7,7 @@ import {
   assTime,
   buildAss,
   buildFilterGraph,
+  graphArgs,
   inputWindows,
   clipFolder,
   config,
@@ -75,6 +78,15 @@ describe("ASS captions", () => {
 });
 
 describe("FFmpeg filter graph", () => {
+  it("keeps short graphs inline and sends long ones through graph.txt", () => {
+    const dir = mkdtempSync(join(tmpdir(), "oneclip-graph-"));
+    expect(graphArgs("[0:v]null[vout]", dir)).toEqual(["-filter_complex", "[0:v]null[vout]"]);
+    expect(existsSync(join(dir, "graph.txt"))).toBe(false);
+    const long = "x".repeat(8001);
+    expect(graphArgs(long, dir)).toEqual(["-/filter_complex", "graph.txt"]);
+    expect(readFileSync(join(dir, "graph.txt"), "utf8")).toBe(long);
+  });
+
   it("trims each cut relative to the seek point, concatenates and finishes the chain", () => {
     expect(inputWindows(plan())).toEqual([{ start: 9, end: 31 }]);
     const g = buildFilterGraph(plan(), inputWindows(plan()), "captions.ass");
