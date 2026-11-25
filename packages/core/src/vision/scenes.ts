@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import type { ClipCandidate } from "../discovery/segment.ts";
 import { mapLimit } from "../jev/evaluator.ts";
@@ -189,6 +189,23 @@ export class LocalVisionDescriber implements SceneDescriber {
   }
 }
 
+/** Frames above this go out smaller: base64 adds a third, and the One CLI's command line holds 30,000 chars with the prompt. */
+export const MAX_FRAME_BYTES = 18_000;
+
+/** The frame, or a smaller copy of it (in `frames-small/`) that fits `MAX_FRAME_BYTES`. */
+export async function fitFrame(ffmpeg: string, path: string, max = MAX_FRAME_BYTES): Promise<string> {
+  if (statSync(path).size <= max) return path;
+  const dir = join(dirname(dirname(path)), "frames-small");
+  mkdirSync(dir, { recursive: true });
+  for (const [w, q] of [[384, 8], [320, 12], [256, 16], [192, 20]] as const) {
+    const out = join(dir, basename(path));
+    const r = await runProcess(ffmpeg, ["-y", "-v", "error", "-i", path, "-vf", `scale=${w}:-2`, "-q:v", String(q), out], { timeoutMs: 60_000 });
+    if (r.code !== 0) throw new Error(`shrinking a frame failed: ${r.stderr.trim().slice(-300)}`);
+    if (statSync(out).size <= max) return out;
+  }
+  throw new Error(`frame ${basename(path)} is still over ${max} bytes at 192 px`);
+}
+
 /** A vision model through the user's OpenRouter connection in One. Paid per frame, so opt-in only. */
 export class OpenRouterVisionDescriber implements SceneDescriber {
   // One frame per request keeps the body under the One CLI's command-line limit.
@@ -197,15 +214,17 @@ export class OpenRouterVisionDescriber implements SceneDescriber {
   constructor(
     private readonly one: Pick<OneClient, "openRouterChat">,
     private readonly models: string[],
+    private readonly ffmpeg = "ffmpeg",
   ) {
     this.name = `${models[0]} (OpenRouter)`;
   }
   async describe(frames: { path: string; at: number }[], context: string) {
+    const small = await Promise.all(frames.map(async (f) => ({ ...f, path: await fitFrame(this.ffmpeg, f.path) })));
     const r = await this.one.openRouterChat({
       models: this.models,
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: parts(frames, context) },
+        { role: "user", content: parts(small, context) },
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 300 * frames.length,
@@ -342,9 +361,9 @@ export type VisionChoice = "auto" | "local" | "openrouter" | "off";
  */
 export async function pickDescriber(
   choice: VisionChoice,
-  o: { localUrl: string; localModel?: string; openrouterModels: string[]; one: () => Pick<OneClient, "openRouterChat"> },
+  o: { localUrl: string; localModel?: string; openrouterModels: string[]; one: () => Pick<OneClient, "openRouterChat">; ffmpeg?: string },
 ): Promise<SceneDescriber | undefined> {
   if (choice === "off") return undefined;
-  if (choice === "openrouter") return new OpenRouterVisionDescriber(o.one(), o.openrouterModels);
+  if (choice === "openrouter") return new OpenRouterVisionDescriber(o.one(), o.openrouterModels, o.ffmpeg);
   return LocalVisionDescriber.find(o.localUrl, o.localModel);
 }
