@@ -8,7 +8,7 @@ const button = cva(
   {
     variants: {
       variant: {
-        primary: "bg-tally text-tally-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] hover:bg-tally-fg",
+        primary: "bg-tally text-tally-ink shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] hover:brightness-110",
         outline: "border border-line bg-raised text-fg backdrop-blur-md hover:bg-line",
         ghost: "text-muted hover:bg-raised hover:text-fg",
       },
