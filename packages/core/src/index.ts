@@ -15,6 +15,7 @@ export * from "./plan/schema.ts";
 export * from "./plan/frame.ts";
 export * from "./plan/compile.ts";
 export * from "./plan/planners.ts";
+export * from "./plan/revise.ts";
 export * from "./media/ffmpeg.ts";
 export * from "./media/source.ts";
 export * from "./vision/scenes.ts";

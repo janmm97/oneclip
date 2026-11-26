@@ -120,6 +120,10 @@ Check:
 
 Fix the plan and render again. Use `--quality preview` while you iterate.
 
+### Chat edits
+
+In the web app, a user can type a change for one clip ("split shot 2", "karaoke captions", "mute shot 3", "cut the first 2 seconds"). The worker turns the clip's plan back into a draft, with one segment per shot. It then asks the configured agent planner to change only what was asked; if no agent is set up, a built-in rule set makes the change instead. The edit is compiled again, every step is logged to the job, and a new preview is queued. If you are that planner, you get `revision: { instruction, current }`. Return `current` with only the requested change, and keep the shot order and every field you weren't asked to touch.
+
 ## 5. Rules
 
 - Use only the source video and its own sound. Don't add outside music, footage or fonts unless the user gives them to you and has the rights.
