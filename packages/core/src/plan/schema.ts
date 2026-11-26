@@ -12,6 +12,23 @@ export const CAPTION_PRESETS = ["bold-pop", "clean", "karaoke"] as const;
 export const TRANSITION_PRESETS = ["none", "fade", "punch-in"] as const;
 export const TEMPLATES = ["podcast-short", "educational-short", "storytelling-short"] as const;
 
+/** How one shot fills the frame: crop and follow a subject, fit the whole shot over a blurred copy, or stack two subjects. */
+export const FRAME_MODES = ["crop", "fit", "split"] as const;
+const Frac = z.number().min(0).max(1);
+/**
+ * A shot's framing. `x`/`y` place the crop window (0 = left/top edge of the scaled picture, 1 = right/bottom),
+ * the same meaning as CSS object-position. `split`: top half uses x/y, bottom half x2/y2, both zoomed by `zoom`.
+ */
+export const FrameSchema = z.object({
+  mode: z.enum(FRAME_MODES),
+  x: Frac.optional(),
+  y: Frac.optional(),
+  x2: Frac.optional(),
+  y2: Frac.optional(),
+  zoom: z.number().min(1).max(3).optional(),
+});
+export type Frame = z.infer<typeof FrameSchema>;
+
 const Range = z.object({ start: z.number().nonnegative(), end: z.number().nonnegative() }).refine((r) => r.end > r.start, "end must be after start");
 
 /** Per-shot mixing controls shared by draft segments and plan cuts. */
@@ -26,6 +43,8 @@ const MixFields = {
   volume: z.number().min(0).max(2).optional(),
   /** Reframe this shot differently from the clip default. */
   cropMode: z.enum(CROP_MODES).optional(),
+  /** Framing for this shot; overrides layout and cropMode. Set by smart reframe or an agent. */
+  frame: FrameSchema.optional(),
 };
 const Segment = z
   .object({ start: z.number().nonnegative(), end: z.number().nonnegative(), ...MixFields })

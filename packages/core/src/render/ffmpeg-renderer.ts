@@ -1,11 +1,11 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { frameOf, SPLIT_Y } from "../plan/frame.ts";
 import type { EditPlan } from "../plan/schema.ts";
 import { runProcess } from "../proc.ts";
 import { buildAss } from "./ass.ts";
 import type { RenderJob, VideoRenderer } from "./types.ts";
 
-const CROP_X = { center: 0.5, "left-third": 0.2, "right-third": 0.8 } as const;
 const f = (n: number) => n.toFixed(3);
 
 /**
@@ -60,7 +60,6 @@ const windowOf = (windows: Range[], start: number, end: number) => {
  */
 export function buildFilterGraph(plan: EditPlan, windows: Range[], captionsFile?: string): string {
   const { width: W, height: H, fps } = plan.output;
-  const blur = plan.editing.layout === "blur-background";
   const parts: string[] = [];
   const AF = "aformat=sample_rates=48000:channel_layouts=stereo";
 
@@ -93,9 +92,31 @@ export function buildFilterGraph(plan: EditPlan, windows: Range[], captionsFile?
     const sp = c.speed ?? 1;
     const len = c.end - c.start;
     const v = [`trim=start=${f(c.start - off)}:end=${f(c.end - off)}`, sp === 1 ? "setpts=PTS-STARTPTS" : `setpts=(PTS-STARTPTS)/${f(sp)}`];
-    // Crop layouts are framed per shot (each cut may pick its own crop); blur is framed after the join.
-    if (!blur) v.push(`fps=${fps}`, `scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}:(iw-ow)*${CROP_X[c.cropMode ?? plan.editing.cropMode]}:(ih-oh)/2`, "setsar=1");
-    parts.push(`[vs${i}]${v.join(",")}[v${i}]`);
+    v.push(`fps=${fps}`);
+    // Every shot is framed on its own: crop on its subject, fit the whole shot over a blurred copy, or split.
+    const fr = frameOf(c, plan);
+    if (fr.mode === "crop") {
+      v.push(`scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}:(iw-ow)*${f(fr.x ?? 0.5)}:(ih-oh)*${f(fr.y ?? 0.5)}`, "setsar=1");
+      parts.push(`[vs${i}]${v.join(",")}[v${i}]`);
+    } else if (fr.mode === "fit") {
+      parts.push(
+        `[vs${i}]${v.join(",")},split[fb${i}][ff${i}]`,
+        `[fb${i}]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=20:2[fbb${i}]`,
+        `[ff${i}]scale=${W}:${H}:force_original_aspect_ratio=decrease[ffs${i}]`,
+        `[fbb${i}][ffs${i}]overlay=(W-w)/2:(H-h)/2,setsar=1[v${i}]`,
+      );
+    } else {
+      const h = Math.floor(H / 4) * 2;
+      const z = f(fr.zoom ?? 1);
+      const half = (x: number, y: number) =>
+        `scale=${W}:${h}:force_original_aspect_ratio=increase,scale='trunc(iw*${z}/2)*2':'trunc(ih*${z}/2)*2',crop=${W}:${h}:(iw-ow)*${f(x)}:(ih-oh)*${f(y)}`;
+      parts.push(
+        `[vs${i}]${v.join(",")},split[st${i}][sb${i}]`,
+        `[st${i}]${half(fr.x ?? 0.5, fr.y ?? SPLIT_Y)}[sto${i}]`,
+        `[sb${i}]${half(fr.x2 ?? 0.5, fr.y2 ?? SPLIT_Y)}[sbo${i}]`,
+        `[sto${i}][sbo${i}]vstack,scale=${W}:${H},setsar=1[v${i}]`,
+      );
+    }
     if (c.muted) {
       parts.push(`anullsrc=r=48000:cl=stereo,atrim=duration=${f(len / sp)}[a${i}]`);
     } else {
@@ -111,15 +132,6 @@ export function buildFilterGraph(plan: EditPlan, windows: Range[], captionsFile?
   parts.push(`${plan.cuts.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${n}:v=1:a=1[vc][ac]`);
 
   let chain = "[vc]";
-  if (blur) {
-    parts.push(
-      `[vc]fps=${fps},split[bg][fg]`,
-      `[bg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},boxblur=20:2[bgb]`,
-      `[fg]scale=${W}:${H}:force_original_aspect_ratio=decrease[fgs]`,
-      `[bgb][fgs]overlay=(W-w)/2:(H-h)/2[lay]`,
-    );
-    chain = "[lay]";
-  }
 
   const filters: string[] = [];
   if (plan.zoomEvents.length) {

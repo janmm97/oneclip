@@ -53,19 +53,35 @@ describe("toOutput", () => {
   const face = { x0: 0.4, y0: 0.2, x1: 0.6, y1: 0.5 };
   const src = { width: 1920, height: 1080 };
 
+  const cut = { start: 0, end: 5 };
+
   it("maps a 16:9 face into a centre-cropped 9:16 frame", () => {
-    const f = toOutput(face, src, plan(), "center");
-    expect(f.x0).toBeCloseTo(0.184, 3);
-    expect(f.x1).toBeCloseTo(0.816, 3);
-    expect(f.y0).toBeCloseTo(0.2, 5);
-    expect(f.y1).toBeCloseTo(0.5, 5);
+    const [f] = toOutput(face, src, plan(), cut);
+    expect(f!.x0).toBeCloseTo(0.184, 3);
+    expect(f!.x1).toBeCloseTo(0.816, 3);
+    expect(f!.y0).toBeCloseTo(0.2, 5);
+    expect(f!.y1).toBeCloseTo(0.5, 5);
   });
 
   it("maps a face into the middle band of a blur-background frame", () => {
-    const f = toOutput(face, src, plan({ editing: { ...plan().editing, layout: "blur-background" } }), "center");
-    expect(f.x0).toBeCloseTo(0.4, 5);
-    expect(f.y0).toBeCloseTo(0.405, 3);
-    expect(f.y1).toBeCloseTo(0.5, 3);
+    const [f] = toOutput(face, src, plan({ editing: { ...plan().editing, layout: "blur-background" } }), cut);
+    expect(f!.x0).toBeCloseTo(0.4, 5);
+    expect(f!.y0).toBeCloseTo(0.405, 3);
+    expect(f!.y1).toBeCloseTo(0.5, 3);
+  });
+
+  it("follows the cut's own frame over the plan's layout", () => {
+    const [f] = toOutput(face, src, plan({ editing: { ...plan().editing, layout: "blur-background" } }), { ...cut, frame: { mode: "crop", x: 0.5 } });
+    expect(f!.x0).toBeCloseTo(0.184, 3);
+  });
+
+  it("places a face in the half of a split that shows it", () => {
+    const left = { x0: 0.15, y0: 0.2, x1: 0.25, y1: 0.4 };
+    const boxes = toOutput(left, src, plan(), { ...cut, frame: { mode: "split", x: 0, y: 0.3, x2: 1, y2: 0.3, zoom: 1 } });
+    // Visible in the top half only (the bottom half shows the right edge of the picture).
+    const onScreen = boxes.filter((b) => b.x1 > 0 && b.x0 < 1);
+    expect(onScreen).toHaveLength(1);
+    expect(onScreen[0]!.y1).toBeLessThanOrEqual(0.5);
   });
 });
 

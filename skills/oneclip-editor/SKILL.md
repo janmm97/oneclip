@@ -83,6 +83,9 @@ Segment fields (per shot):
 | `speed` | 0.5 to 2. Slow motion or fast forward; sound follows. |
 | `volume` | 0 to 2, this shot's sound only. |
 | `cropMode` | `center`, `left-third` or `right-third`: where to frame this shot when the ratio is narrower than the source. |
+| `frame` | Exact framing; overrides `layout` and `cropMode`. `{ "mode": "crop", "x": 0.3 }` follows a subject (`x`/`y` 0–1 place the crop window, like CSS object-position). `{ "mode": "fit" }` shows the whole wide shot over a blurred copy. `{ "mode": "split", "x": 0.2, "x2": 0.8, "zoom": 1.6 }` stacks two subjects: the speaker on top (`x`/`y`), the reaction below (`x2`/`y2`), `zoom` 1–3. |
+
+With `layout: crop-center`, OneClip frames every shot by itself when you leave `frame` out. It splits cuts at shot changes, then follows the faces, fits wide shots, or splits the screen when two people are too far apart for one crop. Set `frame` only to override that, e.g. to force a reaction split.
 
 `bed` (optional) plays one stretch of the source's sound (music, crowd, ambience) under the whole clip: `start`, optional `end`, `volume` 0–1, and `duck` 0–1 (how low it drops while someone speaks; 0.3 is a good default, 1 = no ducking).
 
@@ -116,6 +119,10 @@ Check:
 - the ending lands.
 
 Fix the plan and render again. Use `--quality preview` while you iterate.
+
+### Chat edits
+
+In the web app, a user can type a change for one clip ("split shot 2", "karaoke captions", "mute shot 3", "cut the first 2 seconds"). The worker turns the clip's plan back into a draft, with one segment per shot. It then asks the configured agent planner to change only what was asked; if no agent is set up, a built-in rule set makes the change instead. The edit is compiled again, every step is logged to the job, and a new preview is queued. If you are that planner, you get `revision: { instruction, current }`. Return `current` with only the requested change, and keep the shot order and every field you weren't asked to touch.
 
 ## 5. Rules
 

@@ -16,6 +16,7 @@ import { downloadSource, ensureAudio, ensureVideo, isRemoteSource } from "../med
 import type { JevResponse } from "../one/client.ts";
 import { compilePlan } from "../plan/compile.ts";
 import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
+import { applyInstruction, describeChanges, EDIT_EXAMPLES, planToDraft } from "../plan/revise.ts";
 import { EditPlanSchema, outputFor, RATIOS, ratioSlug, type EditPlan, type Ratio } from "../plan/schema.ts";
 import { redact } from "../proc.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
@@ -23,8 +24,9 @@ import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
 import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
 import { faceSafeCaptions } from "../vision/faces.ts";
+import { smartReframe } from "../vision/reframe.ts";
 import { buildScenes, withScenes, type Scene, type SceneDescriber } from "../vision/scenes.ts";
-import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
+import { enqueue, logStep, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
 
 export interface PipelineDeps {
@@ -404,9 +406,13 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   const slug = `${String(clip.rank).padStart(2, "0")}-${quality}${tag}`;
   const workDir = join(projectDir(cfg, project.id), "work", slug);
   mkdirSync(workDir, { recursive: true });
+  const vision = { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: project.sourceInfo as MediaInfo | null, workDir, modelsDir: join(cfg.dataDir, "models") };
+  // Each shot framed on its own: follow the subject, fit a wide shot, or split two people.
+  await updateJob(db, job.id, { stage: "render", progress: 0, message: "Reframing shots" });
+  const reframed = await smartReframe(fitted, { ...vision, onStep: (message) => void updateJob(db, job.id, { message }) });
   // Captions go where no face is, per page, for this frame shape.
   await updateJob(db, job.id, { stage: "render", progress: 0, message: "Placing captions clear of faces" });
-  const plan = await faceSafeCaptions(fitted, { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: project.sourceInfo as MediaInfo | null, workDir, modelsDir: join(cfg.dataDir, "models") });
+  const plan = await faceSafeCaptions(reframed.plan, vision, reframed.faces);
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);
@@ -468,6 +474,72 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   throw new Error(problems.join(" | ") || "No renderer available");
 }
 
+// ---------- chat edit ----------
+
+/**
+ * A chat edit on one clip: the editing agent revises the plan (the rules
+ * editor when there is no agent or it fails), each change goes to the job's
+ * live feed, and a fresh preview is queued. The plan is validated again, so a
+ * request can at worst give a dull clip, never a broken one.
+ */
+export async function runEdit(deps: PipelineDeps, job: Job): Promise<void> {
+  const { db, cfg } = deps;
+  const project = await db.select().from(projects).where(eq(projects.id, job.projectId)).get();
+  const clip = job.clipId ? await db.select().from(clips).where(eq(clips.id, job.clipId)).get() : undefined;
+  const instruction = (job.instruction ?? "").trim();
+  if (!project || !clip?.plan) throw new Error("Clip or plan not found");
+  if (!instruction) throw new Error("Type what to change");
+  const settings = ProjectSettingsSchema.parse(project.settings);
+  const info = project.sourceInfo as MediaInfo | null;
+  const step = (line: string) => logStep(db, job.id, line);
+  await updateJob(db, job.id, { stage: "plan", progress: 0.05 });
+  let plan = EditPlanSchema.parse(clip.plan);
+
+  // Number the shots the way the viewer sees them: split at camera changes and frame each one, once.
+  if (plan.cuts.every((c) => !c.frame)) {
+    await step("Finding the shots");
+    const workDir = join(projectDir(cfg, project.id), "work", `edit-${clip.rank}`);
+    mkdirSync(workDir, { recursive: true });
+    plan = (await smartReframe(plan, { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: info, workDir, modelsDir: join(cfg.dataDir, "models"), onStep: (m) => void step(m) })).plan;
+  }
+
+  const saved = (() => {
+    try {
+      return JSON.parse(readFileSync(join(projectDir(cfg, project.id), "transcript.json"), "utf8")) as { words?: Word[]; captions?: Word[] };
+    } catch {
+      return {};
+    }
+  })();
+  const words = saved.words ?? [];
+  const before = planToDraft(plan);
+  const candidate = clip.candidate as ClipCandidate;
+  let draft: typeof before | undefined;
+  let by = "rules";
+  const planner = await deps.planner(settings);
+  if (!(planner instanceof TemplatePlanner)) {
+    await step(`Asking ${planner.name} to edit`);
+    await updateJob(db, job.id, { progress: 0.2 });
+    try {
+      draft = await planner.plan({ candidate, words, style: {}, revision: { instruction, current: before } });
+      if (!draft.segments?.length && !draft.keep.length) draft.segments = before.segments;
+      by = planner.name;
+    } catch (e) {
+      await step(`The agent couldn't do it (${redact((e as Error).message).slice(0, 160)}): trying the built-in editor`);
+    }
+  }
+  draft ??= applyInstruction(before, instruction);
+  if (!draft) throw new Error(`I didn't understand that. Try: ${EDIT_EXAMPLES.slice(0, 5).map((e) => `"${e}"`).join(", ")}`);
+
+  const changes = describeChanges(before, draft);
+  for (const line of changes) await step(line);
+  const next = compilePlan(candidate, words, draft, plan.planner, "final", saved.captions ?? words, { sourceDuration: info?.duration });
+  await step(`Clip is now ${next.outputDuration.toFixed(1)} s with ${next.cuts.length} shots`);
+  await db.update(clips).set({ plan: next }).where(eq(clips.id, clip.id));
+  await queueRenders(db, project.id, "preview", clip.id);
+  await step("Rendering a new preview");
+  await updateJob(db, job.id, { status: "done", progress: 1, message: changes.length ? `Done with ${by}: ${changes.length} change${changes.length > 1 ? "s" : ""}` : `Done with ${by}: nothing needed changing` });
+}
+
 /**
  * A plan made for one frame shape, fitted to another: when the frame is much
  * wider than the source (a phone video in 16:9), cropping would throw most of
@@ -501,6 +573,7 @@ export async function queueRenders(db: Db, projectId: string, quality: "final" |
 export async function runJob(deps: PipelineDeps, job: Job): Promise<void> {
   try {
     if (job.kind === "analyze") await runAnalyze(deps, job);
+    else if (job.kind === "edit") await runEdit(deps, job);
     else await runRender(deps, job);
   } catch (e) {
     const msg = redact((e as Error).message ?? String(e)).slice(0, 1000);

@@ -22,11 +22,15 @@ export const projects = sqliteTable("projects", {
 export const jobs = sqliteTable("jobs", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull(),
-  kind: text("kind").notNull(), // analyze | render
+  kind: text("kind").notNull(), // analyze | render | edit
   clipId: text("clip_id"),
   quality: text("quality"),
   /** Frame shape for a render job ("9:16" when empty). */
   ratio: text("ratio"),
+  /** An edit job's request, as the user typed it. */
+  instruction: text("instruction"),
+  /** An edit job's steps so far, oldest first (the live feed). */
+  log: text("log", { mode: "json" }).$type<string[]>(),
   status: text("status").notNull().default("queued"), // queued | running | done | failed
   stage: text("stage"),
   progress: real("progress").notNull().default(0),
@@ -91,7 +95,7 @@ export const jevCache = sqliteTable("jev_cache", {
 
 export const DDL = `
 CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, title TEXT NOT NULL, youtube_url TEXT, youtube_meta TEXT, source_path TEXT NOT NULL, source_url TEXT, source_info TEXT, settings TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'queued', transcriber TEXT, error TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, clip_id TEXT, quality TEXT, ratio TEXT, status TEXT NOT NULL DEFAULT 'queued', stage TEXT, progress REAL NOT NULL DEFAULT 0, message TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, clip_id TEXT, quality TEXT, ratio TEXT, instruction TEXT, log TEXT, status TEXT NOT NULL DEFAULT 'queued', stage TEXT, progress REAL NOT NULL DEFAULT 0, message TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
 CREATE TABLE IF NOT EXISTS transcripts (cache_key TEXT PRIMARY KEY, engine TEXT NOT NULL, model TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, rank INTEGER NOT NULL, candidate TEXT NOT NULL, evaluation TEXT NOT NULL, plan TEXT, planner TEXT, plan_error TEXT, created_at INTEGER NOT NULL);

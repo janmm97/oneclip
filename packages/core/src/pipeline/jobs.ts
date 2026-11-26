@@ -6,7 +6,7 @@ import type { Ratio } from "../plan/schema.ts";
 
 export type Job = typeof jobs.$inferSelect;
 
-export async function enqueue(db: Db, job: { projectId: string; kind: "analyze" | "render"; clipId?: string; quality?: "final" | "preview"; ratio?: Ratio }): Promise<string> {
+export async function enqueue(db: Db, job: { projectId: string; kind: "analyze" | "render" | "edit"; clipId?: string; quality?: "final" | "preview"; ratio?: Ratio; instruction?: string }): Promise<string> {
   const id = randomUUID();
   await db.insert(jobs).values({ id, ...job, status: "queued", message: "Waiting to start" });
   return id;
@@ -23,8 +23,14 @@ export async function claimNext(db: Db): Promise<Job | undefined> {
   return { ...next, status: "running", attempts: next.attempts + 1 };
 }
 
-export async function updateJob(db: Db, id: string, patch: Partial<Pick<Job, "stage" | "progress" | "message" | "status" | "error">>) {
+export async function updateJob(db: Db, id: string, patch: Partial<Pick<Job, "stage" | "progress" | "message" | "status" | "error" | "log">>) {
   await db.update(jobs).set({ ...patch, updatedAt: Date.now() }).where(eq(jobs.id, id));
+}
+
+/** Add a step to an edit job's live feed (and show it as the job's message). */
+export async function logStep(db: Db, id: string, line: string) {
+  const row = await db.select({ log: jobs.log }).from(jobs).where(eq(jobs.id, id)).get();
+  await updateJob(db, id, { message: line, log: [...(row?.log ?? []), line].slice(-200) });
 }
 
 /** Fire-and-forget progress write: a failed progress tick (e.g. a busy DB) must not crash the worker. */
