@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -138,16 +138,39 @@ const REPLY_JSON_SCHEMA = JSON.stringify({
 });
 
 /**
- * Claude Code's flags. Only the Read tool exists, and it is NOT pre-approved (no --allowedTools): print mode then
- * allows reads inside the temp folder (the frames) and refuses everything outside it. A frame is untrusted
- * content; a pre-approved Read could be told by text in a frame to read ~/.ssh or .env and put it in a description.
+ * Claude Code's flags. NO tools at all (--tools ""): the frames go in on stdin as image blocks, so a frame's text
+ * has nothing to call. A Read tool, even one that is not pre-approved here, is re-opened by the user's own settings
+ * (an allow rule or defaultMode bypassPermissions in ~/.claude/settings.json), and then text in a frame could make
+ * it read ~/.ssh or .env into a description that goes on to scenes.json, Jev and the planners.
  */
-export const CLAUDE_VISION_ARGS = ["-p", "--output-format", "json", "--json-schema", REPLY_JSON_SCHEMA, "--tools", "Read", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", SYSTEM];
+export const CLAUDE_VISION_ARGS = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--json-schema", REPLY_JSON_SCHEMA, "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", SYSTEM];
+
+/** The last `result` message of Claude Code's stream-json output. */
+export function resultMessage(stdout: string): { structured_output?: unknown; result?: string; is_error?: boolean } | undefined {
+  for (const l of stdout.split("\n").reverse()) {
+    try {
+      const m = JSON.parse(l) as { type?: string; structured_output?: unknown; result?: string; is_error?: boolean };
+      if (m.type === "result") return m;
+    } catch {}
+  }
+  return undefined;
+}
+
+/** One stream-json user message: the context, then each frame as an inline JPEG with its number and time. */
+export function visionMessage(frames: { data: string; at: number }[], context: string): string {
+  const content: unknown[] = [{ type: "text", text: context }];
+  frames.forEach((f, i) => {
+    content.push({ type: "text", text: `Image ${i + 1} (at ${clock(f.at)}):` });
+    content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.data } });
+  });
+  content.push({ type: "text", text: `Describe these ${frames.length} image(s) in order, i = 1 to ${frames.length}.` });
+  return `${JSON.stringify({ type: "user", message: { role: "user", content } })}\n`;
+}
 
 /**
  * The user's own agent (Claude Code, the one they run OneClip with) looks at the frames: no extra model,
- * key or server. Runs in print mode with only the Read tool, in a temp folder that holds nothing but the
- * batch's frames, with no MCP servers and no session saved.
+ * key or server. Runs in print mode with no tools, no MCP servers and no session saved, in an empty temp
+ * folder (so the project's own Claude settings, hooks and CLAUDE.md don't apply).
  */
 export class ClaudeCodeVisionDescriber implements SceneDescriber {
   readonly name = "Claude Code";
@@ -168,14 +191,11 @@ export class ClaudeCodeVisionDescriber implements SceneDescriber {
   async describe(frames: { path: string; at: number }[], context: string): ReturnType<SceneDescriber["describe"]> {
     const cwd = await mkdtemp(join(tmpdir(), "oneclip-scenes-"));
     try {
-      await Promise.all(frames.map((f, i) => copyFile(f.path, join(cwd, `${i + 1}.jpg`))));
-      const list = frames.map((f, i) => `${i + 1}.jpg (at ${clock(f.at)})`).join(", ");
-      const prompt = `${context}
-Read these ${frames.length} image file(s) in this folder, in order, and describe each one: ${list}.`;
-      const r = await runProcess(this.bin, CLAUDE_VISION_ARGS, { timeoutMs: this.opts.timeoutMs ?? 5 * 60_000, input: prompt, cwd });
+      const input = visionMessage(frames.map((f) => ({ data: readFileSync(f.path).toString("base64"), at: f.at })), context);
+      const r = await runProcess(this.bin, CLAUDE_VISION_ARGS, { timeoutMs: this.opts.timeoutMs ?? 5 * 60_000, input, cwd });
       if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact(r.stderr || r.stdout).slice(-300)}`);
-      const a = r.stdout.indexOf("{");
-      const out = JSON.parse(r.stdout.slice(a, r.stdout.lastIndexOf("}") + 1)) as { structured_output?: unknown; result?: string; is_error?: boolean };
+      const out = resultMessage(r.stdout);
+      if (!out) throw new Error("Claude Code returned no result");
       if (out.is_error) throw new Error(`Claude Code error: ${redact(String(out.result).slice(0, 300))}`);
       return parseReply(out.structured_output ? JSON.stringify(out.structured_output) : (out.result ?? ""), frames.length);
     } finally {
