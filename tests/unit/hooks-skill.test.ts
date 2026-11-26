@@ -82,5 +82,7 @@ describe("oneclip-hooks skill", () => {
     const plan = compilePlan(c, [], draft, "agent edit", "preview", [], { sourceDuration: 2000 });
     expect(plan.cuts.map((x) => x.start)).toEqual(draft.segments?.map((s) => s.start));
     expect(draft.title.split(" ").length).toBeLessThanOrEqual(9);
+    // zoomAt only zooms when zoomIntensity is above 0.
+    expect(plan.zoomEvents.length).toBeGreaterThan(0);
   });
 });

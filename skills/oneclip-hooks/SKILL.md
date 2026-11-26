@@ -113,7 +113,7 @@ Put the on-screen hook in the plan's `title` (OneClip draws it on the first 2.5 
 ### Step 6: shape the clip
 
 - **Hook (0–2 s) → context in one line → payoff → loop or button.** For demos: 0–3 hook, 3–12 setup, 12–38 the thing working, 38–48 reaction or meaning, 48–60 soft CTA or cliffhanger.
-- **Something changes every 5–8 s:** a cut, a zoom (`zoomAt` on the punchline), a new caption page. Cut pauses over a second.
+- **Something changes every 5–8 s:** a cut, a zoom (`zoomAt` on the punchline; it does nothing unless `zoomIntensity` is above 0, e.g. 0.12), a new caption page. Cut pauses over a second.
 - **Length = the shortest that holds the whole arc.** Completion beats length: a 22 s clip watched to the end beats a 50 s clip watched halfway. Targets are in section 6.
 - **End on a loop or a button.** The last frame should flow into the first (a loop counts as a rewatch) or end on the laugh, the result or the last line. Never trail off or end mid-word.
 
@@ -143,6 +143,7 @@ Then run the checklist in section 8 on the render.
   ],
   "captionPreset": "bold-pop",
   "emphasis": ["wrong", "30 seconds"],
+  "zoomIntensity": 0.12,
   "zoomAt": [1531.0],
   "reasoning": "Hook type: contrarian. Cold open on the payoff line at 25:34 ('we were clipping the intro, not the argument'), then the story from 25:02. Setup cut from 24:40. Text frames the audience; voice delivers the claim. Ends on the laugh at 25:34 for the loop."
 }
