@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildScenes, type ClipCandidate, findShots, jevState, parseReply, pickDescriber, ProjectSettingsSchema, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
+import { buildScenes, CLAUDE_VISION_ARGS, type ClipCandidate, findShots, jevState, parseReply, pickDescriber, ProjectSettingsSchema, resultMessage, type Scene, type SceneDescriber, visionMessage, withScenes } from "@oneclip/core";
 
 describe("findShots", () => {
   it("cuts at scene changes and merges blips into the shot before", () => {
@@ -86,6 +86,27 @@ describe("withScenes and Jev", () => {
   it("reads the old vision choices as agent, keeps off", () => {
     for (const v of [undefined, "auto", "local", "openrouter", "agent"]) expect(ProjectSettingsSchema.parse({ vision: v }).vision).toBe("agent");
     expect(ProjectSettingsSchema.parse({ vision: "off" }).vision).toBe("off");
+  });
+});
+
+describe("Claude Code vision flags", () => {
+  it("gives Claude no tools at all, so a frame's text can't read files even when the user's settings allow Read", () => {
+    expect(CLAUDE_VISION_ARGS[CLAUDE_VISION_ARGS.indexOf("--tools") + 1]).toBe("");
+    expect(CLAUDE_VISION_ARGS.some((a) => /^--(allowed-?tools|dangerously|permission-mode|add-dir)/i.test(a))).toBe(false);
+    expect(CLAUDE_VISION_ARGS).toContain("--strict-mcp-config");
+  });
+
+  it("sends the frames inline as one stream-json user message", () => {
+    const m = JSON.parse(visionMessage([{ data: "AAA", at: 3 }, { data: "BBB", at: 70 }], "ctx"));
+    expect(m.type).toBe("user");
+    const images = m.message.content.filter((c: { type: string }) => c.type === "image");
+    expect(images.map((c: { source: { data: string } }) => c.source.data)).toEqual(["AAA", "BBB"]);
+  });
+
+  it("reads the last result message of the stream", () => {
+    const out = ['{"type":"system","subtype":"init"}', "not json", '{"type":"result","is_error":false,"structured_output":{"frames":[]}}', ""].join("\r\n");
+    expect(resultMessage(out)?.structured_output).toEqual({ frames: [] });
+    expect(resultMessage('{"type":"assistant"}')).toBeUndefined();
   });
 });
 
