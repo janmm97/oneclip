@@ -32,7 +32,8 @@ describe("theme", () => {
     expect(boot(stored, os)).toBe(want);
   });
 
-  it("boot script falls back to dark when storage is blocked", () => {
-    expect(boot("light", true, true)).toBe("dark");
+  it("boot script follows the OS when storage is blocked", () => {
+    expect(boot("dark", true, true)).toBe("light");
+    expect(boot("light", false, true)).toBe("dark");
   });
 });
