@@ -78,7 +78,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
   }
 
   return (
-    <section aria-labelledby="edit-chat" className="flex min-h-[28rem] flex-col rounded-lg border border-line bg-panel lg:sticky lg:top-4 lg:h-[calc(100dvh-7rem)]">
+    <section aria-labelledby="edit-chat" className="flex min-h-[28rem] flex-col rounded-lg border border-line bg-panel lg:sticky lg:top-4 lg:h-[calc(100dvh-11.5rem)]">
       <header className="flex items-center gap-2 border-b border-line px-4 py-3">
         <span className={cn("size-2 rounded-full", working ? "tally-live bg-tally" : "bg-line")} aria-hidden />
         <h2 id="edit-chat" className="text-sm font-medium">
