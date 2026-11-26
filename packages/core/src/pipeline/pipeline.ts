@@ -36,7 +36,7 @@ export interface PipelineDeps {
   transcriber(settings: ProjectSettings): Promise<TranscriptionProvider>;
   evaluator(cache: JevCache): HookEvaluator;
   planner(settings: ProjectSettings): Promise<EditingPlanner>;
-  /** The vision model that describes each shot; none: frames and contact sheets only. */
+  /** Who describes each shot (the user's Claude Code); none: frames and contact sheets only. */
   describer?(settings: ProjectSettings): Promise<SceneDescriber | undefined>;
   renderers: Partial<Record<ProjectSettings["renderer"], VideoRenderer>>;
 }
