@@ -14,7 +14,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const { view, error, refresh, clips } = useProject(id);
   const [retrying, setRetrying] = useState(false);
 
-  if (!view) return error ? <Notice>{error}</Notice> : <div className="h-40 animate-pulse rounded-lg bg-panel" aria-label="Loading project" />;
+  if (!view) return error ? <Notice>{error}</Notice> : <div className="glass h-40 animate-pulse rounded-lg" aria-label="Loading project" />;
+  const exported = view.renders.filter((r) => r.status === "done").length;
 
   const analyze = [...view.jobs].reverse().find((j) => j.kind === "analyze");
   const analyzing = view.project.status === "queued" || view.project.status === "running";
@@ -31,7 +32,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">{view.project.title}</h1>
+          <h1 className="truncate text-[clamp(1.5rem,1rem+1.2vw,2.5rem)] leading-tight font-bold tracking-[-0.03em]">{view.project.title}</h1>
           <p className="mt-1 truncate font-mono text-xs text-muted">{view.project.fileName || view.project.sourceUrl}</p>
           {detected ? (
             <p className="mt-1 truncate text-xs text-muted" title={detected.reasons.join("; ")}>
@@ -40,10 +41,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           ) : null}
         </div>
         {view.project.status === "ready" ? (
-          <ButtonLink href={`/projects/${id}/exports`}>
+          <ButtonLink href={`/projects/${id}/exports`} aria-label={`Exports: ${exported} ${exported === 1 ? "video" : "videos"} rendered`}>
             <Film aria-hidden />
             Exports
-            <span className="num text-muted">{view.renders.filter((r) => r.status === "done").length}</span>
+            <span className="num rounded-full bg-raised px-2 py-0.5 text-xs text-muted">
+              {exported} {exported === 1 ? "video" : "videos"}
+            </span>
           </ButtonLink>
         ) : null}
       </div>
@@ -71,7 +74,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         clips.length ? (
           <Results projectId={id} view={view} clips={clips} refresh={refresh} />
         ) : (
-          <p className="mt-8 rounded-lg border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+          <p className="glass mt-8 rounded-lg px-4 py-10 text-center text-sm text-muted">
             No complete thoughts fit this clip length. Try a shorter preset from{" "}
             <Link href="/" className="text-fg underline underline-offset-4">
               a new project
@@ -88,7 +91,7 @@ function Processing({ link, stage, progress, message }: { link: boolean; stage: 
   const steps = STAGES.filter((s) => s !== "render" && (link || s !== "download"));
   const at = stage ? steps.indexOf(stage as (typeof steps)[number]) : -1;
   return (
-    <section className="mt-8 max-w-2xl rounded-lg border border-line bg-panel p-5" aria-live="polite">
+    <section className="glass mt-8 max-w-2xl rounded-xl p-5" aria-live="polite">
       <div className="flex items-baseline justify-between gap-4">
         <p className="text-sm font-medium">{message}</p>
         <span className="num text-sm text-muted">{Math.round(progress * 100)}%</span>

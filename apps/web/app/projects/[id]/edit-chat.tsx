@@ -78,7 +78,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
   }
 
   return (
-    <section aria-labelledby="edit-chat" className="flex min-h-[28rem] flex-col rounded-lg border border-line bg-panel lg:sticky lg:top-4 lg:h-[calc(100dvh-11.5rem)]">
+    <section aria-labelledby="edit-chat" className="glass-thick flex min-h-[28rem] flex-col rounded-xl lg:sticky lg:top-4 lg:h-[calc(100dvh-11.5rem)]">
       <header className="flex items-center gap-2 border-b border-line px-4 py-3">
         <span className={cn("size-2 rounded-full", working ? "tally-live bg-tally" : "bg-line")} aria-hidden />
         <h2 id="edit-chat" className="text-sm font-medium">
@@ -91,7 +91,8 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
         {edits.length ? (
           edits.map((e) => (
             <li key={e.id} className="grid gap-2">
-              <p className="ml-8 justify-self-end rounded-lg rounded-br-sm bg-raised px-3 py-2 text-sm">{e.instruction}</p>
+              {/* iMessage-style: your request is the blue bubble on the right. */}
+              <p className="ml-8 justify-self-end rounded-[1.1rem] rounded-br-md bg-info px-3.5 py-2 text-sm text-white">{e.instruction}</p>
               <Steps edit={e} render={renderAfter(e)} />
             </li>
           ))
@@ -101,7 +102,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
             <p>Shots are numbered on the timeline. Try:</p>
             <div className="flex flex-wrap gap-1.5">
               {EDIT_EXAMPLES.slice(0, 6).map((x) => (
-                <button key={x} onClick={() => setText(x)} className="rounded-full border border-line px-2.5 py-1 text-xs text-fg transition-colors duration-150 hover:border-tally/60 hover:bg-raised">
+                <button key={x} onClick={() => setText(x)} className="press rounded-full border border-line bg-raised px-3 py-1 text-xs text-fg transition-colors duration-150 hover:border-tally/60">
                   {x}
                 </button>
               ))}
@@ -125,7 +126,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
           maxLength={500}
           rows={2}
           placeholder={working ? "Wait for this edit to finish…" : "e.g. split shot 2 and add karaoke captions"}
-          className="w-full resize-none rounded-md border border-line bg-bg px-3 py-2 text-sm placeholder:text-muted focus:border-tally/60 focus:outline-none"
+          className="w-full resize-none rounded-[1.1rem] border border-line bg-raised px-3.5 py-2 text-sm placeholder:text-muted focus:border-tally/60 focus:outline-none"
         />
         <div className="flex items-center gap-2">
           <span className="num text-xs text-muted">{text.length > 400 ? `${text.length}/500` : "Enter to send · Shift+Enter for a new line"}</span>
