@@ -73,7 +73,7 @@ Go past 45 s only if the clip holds: viewers who stay matter more than raw lengt
 | Source | Select | Edit in OneClip |
 |---|---|---|
 | **Podcast, interview** | Start on the answer, end one beat after the payoff; cut on speaker changes, never mid-sentence | Follow the active speaker (`crop-center` auto-framing). For arguments and comedy, force a stacked split on the exchange: `frame: { mode: "split", x, x2, zoom }` |
-| **Stream, gaming** | Reactions and action, clutch plays, fails with setup and payoff inside 15 s | Facecam on top (25–30 %), gameplay below. Keep the original game audio. No webcam: centre crop. A facecam scaled 3–4× looks soft |
+| **Stream, gaming** | Reactions and action, clutch plays, fails with setup and payoff inside 15 s | Facecam on top, gameplay below (creators use ~25–30 % for the facecam; OneClip's `split` is a fixed 50/50 stack, so the facecam gets half the frame). Keep the original game audio. No webcam: centre crop. A facecam scaled 3–4× looks soft |
 | **Sports** | The unexpected play and funny moments a highlight package would skip; post fast, the moment goes stale | Minimal editing; the play at full speed, then a slow replay (`speed: 0.5`). Sports Shorts did better **without** added text and music |
 | **Tutorial, demo, slides** | One problem, one fix | Show the whole frame: `layout: "blur-background"` or `frame: { mode: "fit" }`; cropping hides the information |
 | **Comedy** | The bit with its setup inside 20 s | Split so the listener's reaction shows; payoff on a hard cut, no transition |
@@ -97,7 +97,7 @@ Top clips are edited **lightly**: in 13.5M clips (vendor), text overlays appear 
 | Situation | Method | OneClip |
 |---|---|---|
 | One speaker | Face-tracking crop, face in the upper ⅔ | `layout: "crop-center"` (auto-framing follows faces); override with `frame: { mode: "crop", x }` |
-| Two people who both matter (debate, comedy, reaction) | Stacked split; each half is only ~540 px tall, so use it only when both faces matter | `frame: { mode: "split", x, x2, zoom }`; auto-framing splits when two people are too far apart for one crop |
+| Two people who both matter (debate, comedy, reaction) | Stacked split; each half is half the frame (1080×960 on 1080×1920), so a wide shot is zoomed to about one subject per half; use it only when both faces matter | `frame: { mode: "split", x, x2, zoom }`; auto-framing splits when two people are too far apart for one crop |
 | Demo, slides, screen, wide sports shot | Fit the whole frame over a blurred fill | `layout: "blur-background"` or `frame: { mode: "fit" }` |
 | Gaming with facecam | Facecam on top, gameplay below | `split` with the facecam position in `x`/`y` and the gameplay in `x2`/`y2` |
 
