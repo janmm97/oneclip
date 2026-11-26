@@ -92,9 +92,15 @@ function Captions({ plan, boxed }: { plan: EditPlan; boxed?: boolean }) {
   if (!page) return null;
   const size = Math.round(height * st.size * 0.85);
   return (
-    <AbsoluteFill style={{ justifyContent: "flex-start", alignItems: "center", paddingTop: `${st.y * 100 - 4}%` }}>
+    // Centred on `y` of the frame height (a %-padding would be % of the width and put captions over faces).
+    <AbsoluteFill>
       <div
         style={{
+          position: "absolute",
+          left: "50%",
+          top: `${(page.y ?? st.y) * 100}%`,
+          transform: "translate(-50%, -50%)",
+          width: "max-content",
           maxWidth: "84%",
           textAlign: "center",
           fontFamily: `"${st.font}", Arial, sans-serif`,
@@ -119,9 +125,11 @@ function Captions({ plan, boxed }: { plan: EditPlan; boxed?: boolean }) {
               key={`${w.start}-${i}`}
               style={{
                 display: "inline-block",
-                margin: "0 0.12em",
+                // Emphasis is a real size (layout makes room); a scale() would overlap the next word.
+                margin: "0 0.16em",
+                fontSize: w.emphasis ? "1.15em" : undefined,
                 color: active ? assToCss(st.highlight) : undefined,
-                transform: `scale(${(w.emphasis ? 1.15 : 1) * pop})`,
+                transform: `scale(${pop})`,
               }}
             >
               {st.upper ? w.text.toUpperCase() : w.text}

@@ -22,6 +22,7 @@ import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
 import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
+import { faceSafeCaptions } from "../vision/faces.ts";
 import { buildScenes, withScenes, type Scene, type SceneDescriber } from "../vision/scenes.ts";
 import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
@@ -396,13 +397,16 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   const settings = ProjectSettingsSchema.parse(project.settings);
   const quality = job.quality === "preview" ? "preview" : "final";
   const ratio: Ratio = (RATIOS as readonly string[]).includes(job.ratio ?? "") ? (job.ratio as Ratio) : "9:16";
-  const plan = fitToFrame(EditPlanSchema.parse({ ...(clip.plan as EditPlan), output: outputFor(quality, ratio) }), project.sourceInfo as MediaInfo | null);
+  const fitted = fitToFrame(EditPlanSchema.parse({ ...(clip.plan as EditPlan), output: outputFor(quality, ratio) }), project.sourceInfo as MediaInfo | null);
   const dir = join(projectDir(cfg, project.id), "renders");
   // 9:16 keeps the old names; other ratios get a suffix so they sit side by side.
   const tag = ratio === "9:16" ? "" : `-${ratioSlug(ratio)}`;
   const slug = `${String(clip.rank).padStart(2, "0")}-${quality}${tag}`;
   const workDir = join(projectDir(cfg, project.id), "work", slug);
   mkdirSync(workDir, { recursive: true });
+  // Captions go where no face is, per page, for this frame shape.
+  await updateJob(db, job.id, { stage: "render", progress: 0, message: "Placing captions clear of faces" });
+  const plan = await faceSafeCaptions(fitted, { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: project.sourceInfo as MediaInfo | null, workDir, modelsDir: join(cfg.dataDir, "models") });
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);

@@ -72,8 +72,27 @@ describe("ASS captions", () => {
     expect(events).toHaveLength(2);
     expect(events[0]).toContain("0:00:00.00,0:00:00.50");
     expect(events[1]).toContain("EVIL");
-    expect(ass).not.toContain("\\pos");
+    // Only OneClip's own placement tag; the transcript's injected one is stripped.
+    expect(ass).not.toContain("\\pos(0,0)");
+    for (const e of events) expect(e.match(/\\pos\(/g)).toHaveLength(1);
     expect(ass).toContain("PlayResX: 1080");
+  });
+
+  it("centres each page on its y (fraction of the height), else on the preset's lower-third default", () => {
+    const def = buildAss(plan());
+    expect(def).toContain("{\\an5\\pos(540,1382)}"); // bold-pop default 0.72 × 1920
+    const base = plan().captions[0]!;
+    const moved = buildAss(plan({ captions: [{ ...base, y: 0.4 }] }));
+    expect(moved).toContain("{\\an5\\pos(540,768)}");
+    expect(moved).not.toContain("1382");
+  });
+});
+
+describe("Remotion captions", () => {
+  it("are not placed with a width-relative padding (that put them on faces)", () => {
+    const src = readFileSync(resolve(import.meta.dirname,"../../packages/remotion/src/compositions/Clip.tsx"), "utf8");
+    expect(src).not.toMatch(/paddingTop: `\$\{st\.y/);
+    expect(src).toContain("top: `${(page.y ?? st.y) * 100}%`");
   });
 });
 
