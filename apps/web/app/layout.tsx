@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Link from "next/link";
+import { Shell } from "@/components/shell";
+import { themeBootScript } from "@/lib/theme";
 import "./globals.css";
 
 const sans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -11,27 +12,17 @@ export const metadata: Metadata = {
   description: "Local AI video clipper: finds the strongest hooks in your video and renders vertical clips on your machine.",
 };
 
+export const viewport: Viewport = { viewportFit: "cover" };
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body className="min-h-dvh bg-bg font-sans text-fg antialiased">
-        <header className="border-b border-line">
-          <nav className="flex h-14 items-center gap-6 px-[clamp(1rem,2vw,2.5rem)] text-sm">
-            <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-              <span className="size-2.5 rounded-full bg-tally" aria-hidden />
-              OneClip
-            </Link>
-            <Link href="/" className="text-muted hover:text-fg">
-              New clip
-            </Link>
-            <Link href="/setup" className="text-muted hover:text-fg">
-              Setup
-            </Link>
-            <span className="ml-auto hidden text-xs text-muted sm:block">Runs on this machine · only clip text leaves it (Jev, AI planner)</span>
-          </nav>
-        </header>
-        {/* Full width: the editor uses the whole screen; pages that read better narrow cap themselves. */}
-        <main className="px-[clamp(1rem,2vw,2.5rem)] py-6">{children}</main>
+    // data-theme is set before paint by themeBootScript, so React sees a different attribute than the server sent.
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
+      <body className="min-h-dvh font-sans text-fg antialiased">
+        <Shell>{children}</Shell>
       </body>
     </html>
   );
