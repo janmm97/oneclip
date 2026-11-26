@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildScenes, type ClipCandidate, findShots, jevState, parseReply, pickDescriber, ProjectSettingsSchema, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
+import { buildScenes, CLAUDE_VISION_ARGS, type ClipCandidate, findShots, jevState, parseReply, pickDescriber, ProjectSettingsSchema, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
 
 describe("findShots", () => {
   it("cuts at scene changes and merges blips into the shot before", () => {
@@ -86,6 +86,14 @@ describe("withScenes and Jev", () => {
   it("reads the old vision choices as agent, keeps off", () => {
     for (const v of [undefined, "auto", "local", "openrouter", "agent"]) expect(ProjectSettingsSchema.parse({ vision: v }).vision).toBe("agent");
     expect(ProjectSettingsSchema.parse({ vision: "off" }).vision).toBe("off");
+  });
+});
+
+describe("Claude Code vision flags", () => {
+  it("offers only Read and never pre-approves it, so frames cannot send it outside the temp folder", () => {
+    expect(CLAUDE_VISION_ARGS[CLAUDE_VISION_ARGS.indexOf("--tools") + 1]).toBe("Read");
+    expect(CLAUDE_VISION_ARGS.some((a) => /^--(allowed-?tools|dangerously|permission-mode)/i.test(a))).toBe(false);
+    expect(CLAUDE_VISION_ARGS).toContain("--strict-mcp-config");
   });
 });
 

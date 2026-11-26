@@ -138,6 +138,13 @@ const REPLY_JSON_SCHEMA = JSON.stringify({
 });
 
 /**
+ * Claude Code's flags. Only the Read tool exists, and it is NOT pre-approved (no --allowedTools): print mode then
+ * allows reads inside the temp folder (the frames) and refuses everything outside it. A frame is untrusted
+ * content; a pre-approved Read could be told by text in a frame to read ~/.ssh or .env and put it in a description.
+ */
+export const CLAUDE_VISION_ARGS = ["-p", "--output-format", "json", "--json-schema", REPLY_JSON_SCHEMA, "--tools", "Read", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", SYSTEM];
+
+/**
  * The user's own agent (Claude Code, the one they run OneClip with) looks at the frames: no extra model,
  * key or server. Runs in print mode with only the Read tool, in a temp folder that holds nothing but the
  * batch's frames, with no MCP servers and no session saved.
@@ -165,15 +172,15 @@ export class ClaudeCodeVisionDescriber implements SceneDescriber {
       const list = frames.map((f, i) => `${i + 1}.jpg (at ${clock(f.at)})`).join(", ");
       const prompt = `${context}
 Read these ${frames.length} image file(s) in this folder, in order, and describe each one: ${list}.`;
-      const args = ["-p", "--output-format", "json", "--json-schema", REPLY_JSON_SCHEMA, "--tools", "Read", "--allowedTools", "Read", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", SYSTEM];
-      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 5 * 60_000, input: prompt, cwd });
-      if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-300))}`);
+      const r = await runProcess(this.bin, CLAUDE_VISION_ARGS, { timeoutMs: this.opts.timeoutMs ?? 5 * 60_000, input: prompt, cwd });
+      if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact(r.stderr || r.stdout).slice(-300)}`);
       const a = r.stdout.indexOf("{");
       const out = JSON.parse(r.stdout.slice(a, r.stdout.lastIndexOf("}") + 1)) as { structured_output?: unknown; result?: string; is_error?: boolean };
       if (out.is_error) throw new Error(`Claude Code error: ${redact(String(out.result).slice(0, 300))}`);
       return parseReply(out.structured_output ? JSON.stringify(out.structured_output) : (out.result ?? ""), frames.length);
     } finally {
-      await rm(cwd, { recursive: true, force: true });
+      // Windows can hold a file for a moment after the process exits; a stuck temp folder must not hide the real result or error.
+      await rm(cwd, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
     }
   }
 }
@@ -253,7 +260,7 @@ export async function buildScenes(o: SceneOptions): Promise<SceneFile> {
       );
       b.forEach((s, k) => Object.assign(s, out[k]));
     } catch (e) {
-      failures.push((e as Error).message);
+      failures.push(redact((e as Error).message));
     }
     o.onProgress?.((done += b.length), file.scenes.length);
   });
