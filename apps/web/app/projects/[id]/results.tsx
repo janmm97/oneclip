@@ -1,10 +1,10 @@
 "use client";
 
-import { HOOK_TYPES, type HookType, WEIGHTS } from "@oneclip/core/browser";
+import { HOOK_TYPES, type HookType, planForRatio, ProjectSettingsSchema, type Ratio, WEIGHTS } from "@oneclip/core/browser";
 import { Clip, planVideoConfig } from "@oneclip/remotion/compositions";
 import { Player, type PlayerRef } from "@remotion/player";
 import { Clapperboard, Eye, Meh, ThumbsDown, ThumbsUp } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Meter, Notice } from "@/components/ui";
 import type { ClipRow, View } from "@/lib/use-project";
 import { api, cn, fmtTime } from "@/lib/utils";
@@ -29,7 +29,13 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
   const [at, setAt] = useState(0);
   const player = useRef<PlayerRef>(null);
   const clip = clips.find((c) => c.id === selected) ?? clips[0];
-  const video = clip.plan ? planVideoConfig(clip.plan) : null;
+  // Preview in the shape the user picked, framed the way the render will be (not the 9:16 analysis plan).
+  const ratios = ProjectSettingsSchema.safeParse(view.project.settings).data?.ratios ?? ["9:16"];
+  const [chosen, setRatio] = useState<Ratio>(ratios[0]);
+  const ratio = ratios.includes(chosen) ? chosen : ratios[0];
+  const source = view.project.sourceInfo as { width?: number; height?: number } | null;
+  const shaped = useMemo(() => (clip.plan ? planForRatio(clip.plan, ratio, source) : null), [clip.plan, ratio, source]);
+  const video = shaped ? planVideoConfig(shaped) : null;
   const fps = video?.fps ?? 30;
 
   useEffect(() => {
@@ -39,7 +45,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
     const onFrame = (e: { detail: { frame: number } }) => setAt(e.detail.frame / fps);
     p.addEventListener("frameupdate", onFrame);
     return () => p.removeEventListener("frameupdate", onFrame);
-  }, [clip.id, fps]);
+  }, [clip.id, fps, ratio]);
 
   async function act(key: string, fn: () => Promise<unknown>) {
     setBusy(key);
@@ -104,12 +110,12 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
 
       <section aria-label={`Clip ${clip.rank}`} className="glass grid min-w-0 content-start gap-4 rounded-xl p-4">
         <div className="grid place-items-center rounded-lg bg-black/80 p-3">
-          {clip.plan && video ? (
+          {shaped && video ? (
             <Player
-              key={clip.id}
+              key={`${clip.id}:${ratio}`}
               ref={player}
               component={Clip}
-              inputProps={{ plan: clip.plan, src: `/api/media/source/${projectId}` }}
+              inputProps={{ plan: shaped, src: `/api/media/source/${projectId}` }}
               compositionWidth={video.width}
               compositionHeight={video.height}
               fps={video.fps}
@@ -119,9 +125,22 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
               style={{ width: "100%", maxWidth: `calc(var(--monitor-h) * ${video.width} / ${video.height})`, aspectRatio: `${video.width} / ${video.height}`, borderRadius: 6, overflow: "hidden", background: "black" }}
             />
           ) : (
-            <div className="grid aspect-9/16 w-56 place-items-center p-4 text-center text-xs text-muted">{clip.planError ?? "No edit plan for this clip."}</div>
+            <div className="grid w-56 place-items-center p-4 text-center text-xs text-muted" style={{ aspectRatio: ratio.replace(":", " / ") }}>
+              {clip.planError ?? "No edit plan for this clip."}
+            </div>
           )}
         </div>
+
+        {ratios.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Preview shape">
+            <span className="mr-1 text-xs text-muted">Shape</span>
+            {ratios.map((r) => (
+              <Button key={r} size="sm" variant="ghost" aria-pressed={r === ratio} onClick={() => setRatio(r)} className={cn(r === ratio && "bg-raised")}>
+                {r}
+              </Button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => render("preview", clip.id)} loading={busy === `preview:${clip.id}`} disabled={pending(clip.id) || !clip.plan}>

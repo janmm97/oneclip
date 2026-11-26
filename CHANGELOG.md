@@ -5,6 +5,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ## [Unreleased]
 
 ### Fixed
+- The editor preview always showed a phone (9:16) frame, whatever shape you picked. It now previews in the project's chosen shape, framed the way the render will be (same `planForRatio` as the renderer), with a Shape switcher when you picked more than one.
 - Captions covered faces in the Remotion renderer: the caption offset was a percentage of the frame *width*, so on 9:16 the text sat about a third of the way down, on the speakers' faces. Both renderers now centre each caption page on a height fraction (default lower third: 72%, 76% for `clean`). Emphasised words in Remotion no longer run into the next word.
 
 ### Added
