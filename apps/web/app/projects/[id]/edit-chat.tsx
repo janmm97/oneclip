@@ -92,7 +92,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
           edits.map((e) => (
             <li key={e.id} className="grid gap-2">
               {/* iMessage-style: your request is the blue bubble on the right. */}
-              <p className="ml-8 justify-self-end rounded-[1.1rem] rounded-br-md bg-info px-3.5 py-2 text-sm text-white">{e.instruction}</p>
+              <p className="ml-8 justify-self-end rounded-[1.1rem] rounded-br-md bg-[#0071e3] px-3.5 py-2 text-sm text-white">{e.instruction}</p>
               <Steps edit={e} render={renderAfter(e)} />
             </li>
           ))
