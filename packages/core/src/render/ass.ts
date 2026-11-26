@@ -1,10 +1,10 @@
 import type { EditPlan } from "../plan/schema.ts";
 
-/** Caption looks shared by both renderers (colors are ASS &HBBGGRR). */
+/** Caption looks shared by both renderers (colors are ASS &HBBGGRR). `y` is the default centre of the caption block, as a fraction of the frame height: the lower third, under the faces of a typical talking-head or podcast shot. */
 export const CAPTION_STYLES = {
-  "bold-pop": { font: "Arial Black", size: 0.06, primary: "&H00FFFFFF", highlight: "&H0000E5FF", outline: 6, upper: true, y: 0.68 },
-  clean: { font: "Arial", size: 0.05, primary: "&H00FFFFFF", highlight: "&H00FFC94D", outline: 3, upper: false, y: 0.78 },
-  karaoke: { font: "Arial Black", size: 0.055, primary: "&H80FFFFFF", highlight: "&H0066FF66", outline: 5, upper: true, y: 0.7 },
+  "bold-pop": { font: "Arial Black", size: 0.06, primary: "&H00FFFFFF", highlight: "&H0000E5FF", outline: 6, upper: true, y: 0.72 },
+  clean: { font: "Arial", size: 0.05, primary: "&H00FFFFFF", highlight: "&H00FFC94D", outline: 3, upper: false, y: 0.76 },
+  karaoke: { font: "Arial Black", size: 0.055, primary: "&H80FFFFFF", highlight: "&H0066FF66", outline: 5, upper: true, y: 0.72 },
 } as const;
 
 export function assTime(t: number): string {
@@ -38,13 +38,15 @@ export function buildAss(plan: EditPlan): string {
     "",
     "[V4+ Styles]",
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding",
-    `Style: Cap,${st.font},${size},${st.primary},&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,${st.outline},2,2,${Math.round(W * 0.08)},${Math.round(W * 0.08)},${Math.round(H * (1 - st.y))},1`,
+    `Style: Cap,${st.font},${size},${st.primary},&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,${st.outline},2,5,${Math.round(W * 0.08)},${Math.round(W * 0.08)},0,1`,
     "",
     "[Events]",
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
   ];
   const lines: string[] = [];
   for (const page of plan.captions) {
+    // Each page is centred on its own height (face-safe placement may move it), the same point the Remotion renderer uses.
+    const pos = `{\\an5\\pos(${Math.round(W / 2)},${Math.round(H * (page.y ?? st.y))})}`;
     page.words.forEach((w, i) => {
       const end = i + 1 < page.words.length ? (page.words[i + 1] as typeof w).start : page.end;
       if (end <= w.start) return;
@@ -55,7 +57,7 @@ export function buildAss(plan: EditPlan): string {
           return j === i ? `{\\c${st.highlight}${big}}${t}{\\r}` : big ? `{${big}}${t}{\\r}` : t;
         })
         .join(" ");
-      lines.push(`Dialogue: 0,${assTime(w.start)},${assTime(end)},Cap,,0,0,0,,${text}`);
+      lines.push(`Dialogue: 0,${assTime(w.start)},${assTime(end)},Cap,,0,0,0,,${pos}${text}`);
     });
   }
   return `${[...head, ...lines].join("\n")}\n`;

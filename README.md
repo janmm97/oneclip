@@ -211,6 +211,8 @@ These skills are third-party. OneClip doesn't ship them: it fetches them from th
 - **Remotion** (default): animated word-by-word captions, title card and the three templates, rendered headless with Chrome Headless Shell (downloaded once, ~131 MB). Measured: about 107 s for a 46 s clip at 1080×1920 on CPU. `pnpm install` installs the Remotion packages OneClip needs; Remotion's agent skills come with the [agent skills](#agent-skills). Remotion is free for individuals and companies of up to 3 people; larger companies need a [company licence](https://www.remotion.dev/license).
 - **FFmpeg**: faster and lighter. Captions are burned in with ASS/libass. Use it on slower machines or if Chrome can't be downloaded.
 
+**Face-safe captions.** Before each render OneClip looks at three frames of every shot with a small local face detector ([YuNet](https://huggingface.co/opencv/face_detection_yunet), MIT, 233 kB, downloaded once into `.oneclip/models/` and checked by SHA-256) and places each caption page in the lower third, or wherever is clear of the faces in that shot for the chosen frame shape. Measured on a 3-shot podcast clip: about 3–5 s on CPU. If the model can't be downloaded or a frame can't be read, captions keep the default lower-third spot.
+
 Every render is checked with FFprobe (size, duration, H.264 video, an audio track and audio/video drift). If the chosen renderer fails or its output doesn't pass the check, OneClip retries the clip with the FFmpeg renderer.
 
 ## Costs and external services
@@ -223,6 +225,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 | Claude Code / OpenCode (optional) | Edit plans | One short prompt per clip on your own plan or API key |
 | YouTube oEmbed | Title and thumbnail preview | Free, no key |
 | yt-dlp | Downloads links from YouTube and other sites | Free, open source; installed with pip on first use |
+| Hugging Face | One download of the YuNet face model (233 kB) for face-safe captions | Free, no key |
 | Remotion | Rendering | Free for individuals and small companies; larger companies need a [Remotion company licence](https://www.remotion.dev/license) |
 
 ## Privacy

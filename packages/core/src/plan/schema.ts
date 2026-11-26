@@ -70,7 +70,8 @@ export type PlanDraft = z.infer<typeof PlanDraftSchema>;
 export type Segment = z.infer<typeof Segment>;
 
 export const CaptionWordSchema = z.object({ text: z.string(), start: z.number(), end: z.number(), emphasis: z.boolean() });
-export const CaptionSchema = z.object({ start: z.number(), end: z.number(), words: z.array(CaptionWordSchema) });
+/** `y`: where the page sits (centre, fraction of the frame height), set by face-safe placement; unset: the preset's default. */
+export const CaptionSchema = z.object({ start: z.number(), end: z.number(), words: z.array(CaptionWordSchema), y: z.number().min(0.05).max(0.95).optional() });
 
 /** The full, validated plan the renderers consume. Caption and zoom times are output time (after cuts). */
 export const EditPlanSchema = z.object({
