@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CAPTION_STYLES } from "../render/ass.ts";
 import type { EditPlan } from "../plan/schema.ts";
@@ -103,7 +103,13 @@ export function placeCaptions(plan: EditPlan, facesPerCut: FaceBox[][]): EditPla
     t += len;
   });
   const captions = plan.captions.map((page) => {
-    const faces = spans.filter((s) => s.start < page.end && s.end > page.start).flatMap((s) => s.faces);
+    // A zoom punches in on the frame centre, so faces grow and drift outwards while the page is up.
+    const zoom = Math.max(1, ...plan.zoomEvents.filter((e) => e.at < page.end && e.at + e.duration > page.start).map((e) => e.scale));
+    const grow = (v: number) => 0.5 + (v - 0.5) * zoom;
+    const faces = spans
+      .filter((s) => s.start < page.end && s.end > page.start)
+      .flatMap((s) => s.faces)
+      .map((f) => (zoom > 1 ? { x0: grow(f.x0), y0: grow(f.y0), x1: grow(f.x1), y1: grow(f.y1) } : f));
     return faces.length ? { ...page, y: pickCaptionY(faces, st.y, half) } : page;
   });
   return { ...plan, captions };
@@ -114,13 +120,17 @@ let session: Promise<{ run(feeds: Record<string, unknown>): Promise<Record<strin
 /** The YuNet session, downloading and hash-checking the model on first use. */
 async function yunet(modelsDir: string) {
   const path = join(modelsDir, YUNET.file);
+  // A file left half-written (killed run, two renders at once) must not stick: re-check the hash of what is on disk.
+  if (existsSync(path) && createHash("sha256").update(readFileSync(path)).digest("hex") !== YUNET.sha256) rmSync(path, { force: true });
   if (!existsSync(path)) {
     const res = await fetch(YUNET.url, { signal: AbortSignal.timeout(60_000) });
     if (!res.ok) throw new Error(`Face model download failed: HTTP ${res.status}`);
     const buf = Buffer.from(await res.arrayBuffer());
     if (createHash("sha256").update(buf).digest("hex") !== YUNET.sha256) throw new Error("Face model download failed: hash mismatch");
     mkdirSync(modelsDir, { recursive: true });
-    writeFileSync(path, buf);
+    const tmp = `${path}.${process.pid}.tmp`;
+    writeFileSync(tmp, buf);
+    renameSync(tmp, path); // atomic: a second render never sees a partial model
   }
   const ort = await import("onnxruntime-node");
   const s = await ort.InferenceSession.create(path);
