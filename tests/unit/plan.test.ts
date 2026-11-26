@@ -11,6 +11,7 @@ import {
   type OneClient,
   type OpenRouterChatRequest,
   OpenRouterPlanner,
+  padCuts,
   parseDraft,
   pickPlanner,
   type PlanDraft,
@@ -106,6 +107,20 @@ describe("cut helpers", () => {
     expect(snapToWords(0.9, w, "end")).toBe(1);
     expect(snapToWords(2.8, w, "start")).toBe(3);
     expect(snapToWords(10, w, "start")).toBe(10);
+  });
+
+  it("pads cut edges so the first and last words aren't clipped, never into a neighbour", () => {
+    expect(padCuts([{ start: 0.6, end: 1 }], w, { start: 0, end: 10 })).toEqual([{ start: 0.5, end: 1.3 }]);
+    expect(padCuts([{ start: 3, end: 3.5 }], w, { start: 0, end: 3.6 })).toEqual([{ start: 2.85, end: 3.6 }]);
+  });
+
+  it("compiled speech clips end a little after the last word", () => {
+    const ws = words(["One two three four five six.", "Seven eight nine ten eleven twelve."], 1);
+    const last = ws.at(-1) as Word;
+    const draft = { template: "podcast-short", layout: "crop-center", cropMode: "center", captionPreset: "clean", transitionPreset: "none", zoomIntensity: 0, removeSilences: true, keep: [], zoomAt: [], emphasis: [], title: "t", reasoning: "" } as PlanDraft;
+    const c = { id: "v", videoId: "v", start: 0, end: last.end, openingText: "", transcript: "", precedingContext: "", followingContext: "", duration: 0 };
+    const plan = compilePlan(c, ws, draft, "t", "final", ws, { sourceDuration: 60 });
+    expect(plan.cuts.at(-1)!.end).toBeCloseTo(last.end + 0.3, 5);
   });
 
   it("maps source time to output time across cuts", () => {
