@@ -13,14 +13,14 @@ Run the analysis if there is no project yet (it prints `Project <id>`):
 
 ```bash
 pnpm clip <video-or-YouTube-link> --no-render          # analysis only
-pnpm clip <video> --top 3 --vision local               # with a local vision model (LM Studio)
+pnpm clip <video> --top 3 --vision off                 # skip scene descriptions (read the frames yourself)
 ```
 
 Everything is in the project folder, `.oneclip/projects/<id>/` (or `$ONECLIP_DATA_DIR/projects/<id>/`):
 
 | File | What it tells you |
 |---|---|
-| `scenes.json` | One entry per shot: `start`, `end` (seconds in the source), `frame`, and, if a vision model ran, `description`, `action`, `tags`. `describedBy` says which model; `null` means nobody described them yet. |
+| `scenes.json` | One entry per shot: `start`, `end` (seconds in the source), `frame`, and, if Claude Code described them, `description`, `action`, `tags`. `describedBy` says who; `null` means nobody described them yet: open `frames/` or `sheets/` and look yourself. |
 | `frames/0001.jpg …` | One frame from the middle of each shot, numbered like `scenes`. |
 | `sheets/sheet-01.jpg …` | 4×4 contact sheets of those frames, left to right, top to bottom; `sheets[].scenes` gives the shot numbers on each sheet. |
 | `transcript.json` | `language`, `words` (each `text`, `start`, `end` in source seconds) and `captions` (the caption words, English when the source isn't). |

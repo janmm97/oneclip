@@ -1,4 +1,4 @@
-import type { EditPlan, Frame } from "./schema.ts";
+import { outputFor, type EditPlan, type Frame, type Ratio } from "./schema.ts";
 
 /** Crop-window position for the old crop modes (0 = left edge, 1 = right edge). */
 export const CROP_X = { center: 0.5, "left-third": 0.2, "right-third": 0.8 } as const;
@@ -17,6 +17,23 @@ export function frameOf(cut: Cut, plan: EditPlan): Required<Pick<Frame, "mode">>
 interface Size {
   width: number;
   height: number;
+}
+
+/**
+ * A plan made for one frame shape, fitted to another: when the frame is much
+ * wider than the source (a phone video in 16:9), cropping would throw most of
+ * the picture away, so the clip sits on a blurred copy of itself instead.
+ */
+export function fitToFrame(plan: EditPlan, source: Partial<Size> | null): EditPlan {
+  if (!source?.width || !source.height) return plan;
+  const frame = plan.output.width / plan.output.height;
+  const src = source.width / source.height;
+  return frame > src * 1.3 ? { ...plan, editing: { ...plan.editing, layout: "blur-background" } } : plan;
+}
+
+/** The plan as it renders in `ratio`: that frame size, fitted to the source. The editor preview and the renderer both use it. */
+export function planForRatio(plan: EditPlan, ratio: Ratio, source: Partial<Size> | null, quality: "final" | "preview" = "final"): EditPlan {
+  return fitToFrame({ ...plan, output: outputFor(quality, ratio) }, source);
 }
 
 /** Where a box `w`×`h` (output px) must sit, as a window position 0..1, to centre source point `c` (0..1) in it. */

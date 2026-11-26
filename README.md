@@ -2,7 +2,7 @@
 
 OneClip is an open-source AI video clipper powered by [One](https://withone.ai), TypeSafe Jev and AI editing agents. It finds the strongest hooks in a long video and turns them into short vertical clips, on your own computer.
 
-- **Local first.** Transcription, cutting, captions and rendering all run on your machine. The only thing that leaves it is clip text: sent to Jev for scoring and, by default, to an AI planner (OpenRouter via One, Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except Jev ([Privacy](#privacy)).
+- **Local first.** Transcription, cutting, captions and rendering all run on your machine. What leaves it: clip text, sent to Jev for scoring and, by default, to an AI planner (OpenRouter via One, Claude Code or OpenCode) for edit plans; and, when Claude Code is installed, one still frame per shot, sent through your Claude Code to describe the scenes. Pick the `template` planner and `--vision off` to keep it off every AI service except Jev ([Privacy](#privacy)).
 - **Ranked by Jev, not by vibes.** Every candidate clip gets six scored dimensions, a context check and a hook type from TypeSafe's Jev, and the ranking explains itself.
 - **Real files out.** You get playable 1080×1920, 30 fps MP4s with word-by-word captions, ready to post.
 
@@ -103,7 +103,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 | `pnpm run setup [--skip-python] [--model base]` | First-run setup (see above) |
 | `pnpm run doctor [--test-jev]` | Checks Node, FFmpeg, libass, One, TypeSafe, Jev, transcription, editing agent, Remotion |
 | `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--content auto\|music_video\|podcast\|gameplay\|…] [--no-render]` | The whole pipeline without the UI |
-| `pnpm clip <video> --vision auto\|local\|openrouter\|off` | How shots are described (see [Editing with your agent](#editing-with-your-agent)) |
+| `pnpm clip <video> --vision agent\|off` | Whether your agent describes the shots (see [Editing with your agent](#editing-with-your-agent)) |
 | `pnpm run edit --plan edit.json (--project <id> \| --source video.mp4) [--ratio 9:16,16:9] [--quality preview] [--dry-run]` | Render an edit plan your agent (or you) wrote: shot order, borrowed audio, speed, mutes, audio bed |
 | `pnpm eval:hooks [--dry] [--feedback] [--json]` | Runs Jev over `datasets/` and reports precision@K, ranking agreement, strong-hook recall and false-positive rate |
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
@@ -170,21 +170,19 @@ If an agent's output doesn't validate, OneClip falls back to the template planne
 
 OneClip saves what it saw and heard in each project folder (`.oneclip/projects/<id>/`), so Claude Code, OpenCode or any agent can re-cut a clip like an editor would:
 
-- `scenes.json`: every shot with its times and, when a vision model ran, what's on screen and what happens;
+- `scenes.json`: every shot with its times and, when your agent described them, what's on screen and what happens;
 - `frames/` and `sheets/`: one frame per shot and 4×4 contact sheets;
 - `transcript.json`: every word with its time;
 - `hooks.live.jsonl`: Jev's hook scores.
 
 Shots are described by the `vision` setting:
 
-| `vision` | Who describes the shots | Cost |
-|---|---|---|
-| `auto` (default) | A local vision model in [LM Studio](https://lmstudio.ai) if one is downloaded, otherwise nobody | Free |
-| `local` | LM Studio or any OpenAI-compatible server (`ONECLIP_VISION_URL`, `ONECLIP_VISION_MODEL`) | Free, nothing leaves your PC |
-| `openrouter` | Vision models through your One OpenRouter connection | Paid per frame |
-| `off` | Nobody: your agent reads the contact sheets itself | Free |
+| `vision` | Who describes the shots |
+|---|---|
+| `agent` (default) | The agent you run OneClip with: Claude Code (`CLAUDE_BIN`), in print mode with no tools at all (the frames go in as images, 8 per call), no MCP servers and no saved session. Uses your Claude plan: about 1 call per 8 shots. No extra model, key or server. If Claude Code isn't installed (or is the npm `claude.cmd` on Windows, see Troubleshooting), nobody, as with `off`. |
+| `off` | Nobody: your agent reads the frames and contact sheets itself when you ask it to edit. |
 
-Measured: `qwen/qwen3.5-4b` in LM Studio described 8 shots of a 89 s gameplay video in 101 s on an RTX 3050 Laptop GPU (4 GB). It got the setting and main events right, and misnamed some small objects.
+Projects saved with the old choices (`auto`, `local`, `openrouter`) now read as `agent`.
 
 The skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md) teaches your agent pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`.
 
@@ -234,7 +232,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 
 ## Privacy
 
-- Your video, audio and renders never leave your machine.
+- Your video, audio and renders never leave your machine. With `vision` on `agent` (the default) and Claude Code installed, one still frame per shot goes to Anthropic through your own Claude Code; use `--vision off` to keep frames local.
 - Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
 - Links are downloaded to your computer; nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
@@ -246,6 +244,7 @@ Only process videos you own or are authorised to edit.
 
 | Symptom | Fix |
 |---|---|
+| Scenes are never described on Windows, though Claude Code is installed | An npm-installed Claude Code is `claude.cmd`, which OneClip can't start without a shell. Install the native build (`claude.exe`) or set `CLAUDE_BIN` to a `.exe` |
 | `pnpm setup` does something unexpected | Use `pnpm run setup`; `setup` and `doctor` are pnpm built-ins |
 | "One CLI not found" | `npm i -g @withone/cli`, or set `ONE_BIN` |
 | "TypeSafe not connected" | `one add typesafe`; if you have several, set `ONE_TYPESAFE_KEY` |
