@@ -1,0 +1,140 @@
+"use client";
+
+import { EDIT_EXAMPLES } from "@oneclip/core/browser";
+import { Check, CornerDownLeft, X } from "lucide-react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { Button, Notice } from "@/components/ui";
+import type { View } from "@/lib/use-project";
+import { api, cn } from "@/lib/utils";
+
+type Job = View["jobs"][number];
+const busy = (j?: Job) => j?.status === "queued" || j?.status === "running";
+
+function Steps({ edit, render }: { edit: Job; render?: Job }) {
+  const steps = edit.log ?? [];
+  const lines = busy(edit) && !steps.length ? [edit.message ?? "Waiting for the worker"] : steps;
+  return (
+    <ol className="grid gap-1.5 text-sm">
+      {lines.map((line, i) => {
+        const live = busy(edit) && i === lines.length - 1;
+        return (
+          <li key={i} className={cn("flex items-start gap-2", live ? "text-fg" : "text-muted")}>
+            <span className={cn("mt-1 grid size-3.5 shrink-0 place-items-center rounded-full", live ? "tally-live bg-tally" : "bg-good/15 text-good")}>
+              {live ? null : <Check className="size-2.5" aria-hidden />}
+            </span>
+            {line}
+          </li>
+        );
+      })}
+      {edit.status === "failed" ? (
+        <li className="flex items-start gap-2 text-bad">
+          <X className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span className="whitespace-pre-wrap">{edit.error}</span>
+        </li>
+      ) : null}
+      {edit.status === "done" && render ? (
+        <li className={cn("flex items-start gap-2", busy(render) ? "text-fg" : render.status === "failed" ? "text-bad" : "text-muted")}>
+          <span className={cn("mt-1 grid size-3.5 shrink-0 place-items-center rounded-full", busy(render) ? "tally-live bg-tally" : render.status === "failed" ? "bg-bad/15" : "bg-good/15 text-good")}>
+            {render.status === "done" ? <Check className="size-2.5" aria-hidden /> : null}
+          </span>
+          {busy(render) ? `${render.message ?? "Rendering"} · ${Math.round((render.progress ?? 0) * 100)}%` : render.status === "done" ? "Preview rendered" : `Preview failed: ${render.error}`}
+        </li>
+      ) : null}
+    </ol>
+  );
+}
+
+/** Chat with the editor about one clip: each request becomes an edit job whose steps stream in as the worker makes them. */
+export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: string; clipId: string; jobs: Job[]; refresh: () => Promise<void> }) {
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string>();
+  const feed = useRef<HTMLOListElement>(null);
+  const edits = jobs.filter((j) => j.kind === "edit" && j.clipId === clipId);
+  const working = edits.some(busy);
+  const renderAfter = (e: Job) => jobs.find((j) => j.kind === "render" && j.clipId === clipId && j.quality === "preview" && j.createdAt >= e.createdAt);
+  const progress = edits.reduce((n, e) => n + (e.log?.length ?? 0), 0) + jobs.filter(busy).length;
+
+  // Scroll to the newest step whenever one arrives.
+  useEffect(() => {
+    feed.current?.scrollTo({ top: feed.current.scrollHeight, behavior: "smooth" });
+  }, [progress]);
+
+  async function send(e?: FormEvent) {
+    e?.preventDefault();
+    const instruction = text.trim();
+    if (!instruction || working) return;
+    setSending(true);
+    setError(undefined);
+    try {
+      await api(`/api/projects/${projectId}/edit`, { method: "POST", body: JSON.stringify({ clipId, instruction }) });
+      setText("");
+      await refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="edit-chat" className="flex min-h-[28rem] flex-col rounded-lg border border-line bg-panel lg:sticky lg:top-4 lg:h-[calc(100dvh-7rem)]">
+      <header className="flex items-center gap-2 border-b border-line px-4 py-3">
+        <span className={cn("size-2 rounded-full", working ? "tally-live bg-tally" : "bg-line")} aria-hidden />
+        <h2 id="edit-chat" className="text-sm font-medium">
+          Editor
+        </h2>
+        <span className="ml-auto text-xs text-muted">{working ? "Editing…" : "Ready"}</span>
+      </header>
+
+      <ol ref={feed} className="grid flex-1 content-start gap-4 overflow-y-auto px-4 py-4" aria-live="polite">
+        {edits.length ? (
+          edits.map((e) => (
+            <li key={e.id} className="grid gap-2">
+              <p className="ml-8 justify-self-end rounded-lg rounded-br-sm bg-raised px-3 py-2 text-sm">{e.instruction}</p>
+              <Steps edit={e} render={renderAfter(e)} />
+            </li>
+          ))
+        ) : (
+          <li className="grid gap-3 text-sm text-muted">
+            <p>Tell the editor what to change on this clip. It reframes, cuts, retimes, mutes and re-captions, shows each step here, then renders a new preview.</p>
+            <p>Shots are numbered on the timeline. Try:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {EDIT_EXAMPLES.slice(0, 6).map((x) => (
+                <button key={x} onClick={() => setText(x)} className="rounded-full border border-line px-2.5 py-1 text-xs text-fg transition-colors duration-150 hover:border-tally/60 hover:bg-raised">
+                  {x}
+                </button>
+              ))}
+            </div>
+          </li>
+        )}
+      </ol>
+
+      <form onSubmit={send} className="grid gap-2 border-t border-line p-3">
+        {error ? <Notice>{error}</Notice> : null}
+        <label htmlFor="edit-input" className="sr-only">
+          What should change?
+        </label>
+        <textarea
+          id="edit-input"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) send(e);
+          }}
+          maxLength={500}
+          rows={2}
+          placeholder={working ? "Wait for this edit to finish…" : "e.g. split shot 2 and add karaoke captions"}
+          className="w-full resize-none rounded-md border border-line bg-bg px-3 py-2 text-sm placeholder:text-muted focus:border-tally/60 focus:outline-none"
+        />
+        <div className="flex items-center gap-2">
+          <span className="num text-xs text-muted">{text.length > 400 ? `${text.length}/500` : "Enter to send · Shift+Enter for a new line"}</span>
+          <Button type="submit" size="sm" variant="primary" className="ml-auto" loading={sending} disabled={!text.trim() || working}>
+            <CornerDownLeft aria-hidden />
+            Send
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
