@@ -92,7 +92,10 @@ export function findHooks(words, jev = [], top = 15) {
   return lines.filter((l) => l.score > 0).sort((a, b) => b.score - a.score || a.start - b.start).slice(0, top);
 }
 
-const time = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+const time = (t) => {
+  const tenths = Math.round(t * 10); // round first so 59.96 s prints 1:00.0, not 0:60.0
+  return `${Math.floor(tenths / 600)}:${((tenths % 600) / 10).toFixed(1).padStart(4, "0")}`;
+};
 
 function main(argv) {
   const args = argv.slice(2);
