@@ -123,6 +123,14 @@ describe("placeCaptions", () => {
     expect(p.captions[0]!.y).toBeLessThan(0.6);
   });
 
+  it("allows for faces growing under a zoom-in while the page is up", () => {
+    const face = { x0: 0.4, y0: 0.4, x1: 0.6, y1: 0.6 };
+    const still = placeCaptions(plan(), [[face], []]);
+    const zoomed = placeCaptions(plan({ zoomEvents: [{ at: 0, duration: 1.2, scale: 1.5 }] }), [[face], []]);
+    expect(still.captions[0]!.y).toBe(CAPTION_STYLES["bold-pop"].y);
+    expect(zoomed.captions[0]!.y).not.toBe(CAPTION_STYLES["bold-pop"].y);
+  });
+
   it("keeps a face-free page at the preset default (no y)", () => {
     const p = placeCaptions(plan(), [[{ x0: 0.3, y0: 0.1, x1: 0.7, y1: 0.35 }], []]);
     expect(p.captions[0]!.y).toBe(CAPTION_STYLES["bold-pop"].y);
