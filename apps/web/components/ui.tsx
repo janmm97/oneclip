@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { LoaderCircle } from "lucide-react";
-import type { ComponentProps, ReactNode } from "react";
+import { type ComponentProps, type ReactNode, useId } from "react";
 import { cn } from "@/lib/utils";
 
 const button = cva(
@@ -98,24 +98,22 @@ export function Notice({ tone = "bad", children }: { tone?: "bad" | "warn"; chil
   );
 }
 
-/** iOS segmented control: one choice out of a few, as a radio group. */
+/** iOS segmented control. Native radios, so arrow keys, roving focus and screen-reader semantics come from the browser. */
 export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: readonly (readonly [T, ReactNode])[]; label: string }) {
+  const name = useId();
   return (
     <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-1 rounded-md bg-raised p-1">
       {options.map(([v, l]) => (
-        <button
+        <label
           key={v}
-          type="button"
-          role="radio"
-          aria-checked={v === value}
-          onClick={() => onChange(v)}
           className={cn(
-            "press min-h-8 rounded-[0.6rem] px-2 text-[0.8125rem] font-medium",
+            "press grid min-h-8 cursor-pointer place-items-center rounded-[0.6rem] px-2 text-center text-[0.8125rem] font-medium has-focus-visible:outline-2 has-focus-visible:outline-tally",
             v === value ? "bg-panel-strong text-fg shadow-[0_1px_3px_rgb(0_0_0/0.25)]" : "text-muted hover:text-fg",
           )}
         >
+          <input type="radio" name={name} value={v} checked={v === value} onChange={() => onChange(v)} className="sr-only" />
           {l}
-        </button>
+        </label>
       ))}
     </div>
   );
