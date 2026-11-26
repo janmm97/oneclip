@@ -1,102 +1,194 @@
 @import "tailwindcss";
 
 /*
- * OneClip: an editing bay. Warm graphite surfaces, one amber "tally light"
- * for what is live or primary, cool neutral text. Dark first; a light theme
- * follows the OS for people who edit in daylight.
+ * OneClip "Liquid Glass": frosted, see-through panels over a soft colour backdrop,
+ * in the style of iOS. Amber (#f5a524) is the one tint for what is live or primary;
+ * iOS system colours carry status (green ready, red failed, blue processing).
+ * Dark first. Light follows the OS until the user picks one (html[data-theme]).
+ *
+ * Glass rule: no filter, opacity < 1 or transform on an ancestor of a .glass panel.
+ * Any of them breaks backdrop-filter.
  */
 @theme inline {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", var(--font-geist-sans), "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", var(--font-geist-mono), monospace;
 }
 
 @theme {
-  --color-bg: oklch(0.17 0.006 60);
-  --color-panel: oklch(0.205 0.007 60);
-  --color-raised: oklch(0.245 0.008 60);
-  --color-line: oklch(0.32 0.008 60);
-  --color-fg: oklch(0.95 0.004 80);
-  --color-muted: oklch(0.72 0.01 70);
-  --color-tally: oklch(0.8 0.16 72);
-  --color-tally-ink: oklch(0.22 0.05 60);
-  --color-good: oklch(0.78 0.14 155);
-  --color-warn: oklch(0.8 0.14 85);
-  --color-bad: oklch(0.7 0.17 28);
+  --color-bg: #07070b;
+  /* Glass fill; panel-strong sits under body text so it keeps WCAG AA contrast. */
+  --color-panel: rgb(26 26 32 / 0.56);
+  --color-panel-strong: rgb(22 22 28 / 0.74);
+  --color-raised: rgb(255 255 255 / 0.08);
+  --color-line: rgb(255 255 255 / 0.12);
+  --color-fg: #f5f5f7;
+  --color-muted: rgb(235 235 245 / 0.72);
+  --color-tally: #f5a524;
+  --color-tally-fg: #ffbe4d;
+  --color-tally-ink: #1f1300;
+  --color-good: #30d158;
+  --color-warn: #ffd60a;
+  --color-bad: #ff453a;
+  --color-info: #0a84ff;
 
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --radius-sm: 0.625rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    --color-bg: oklch(0.975 0.004 80);
-    --color-panel: oklch(0.995 0.002 80);
-    --color-raised: oklch(0.95 0.005 80);
-    --color-line: oklch(0.86 0.008 70);
-    --color-fg: oklch(0.2 0.008 60);
-    --color-muted: oklch(0.45 0.012 60);
-    --color-tally: oklch(0.72 0.16 65);
-    --color-tally-ink: oklch(0.2 0.05 60);
-    --color-good: oklch(0.5 0.13 155);
-    --color-warn: oklch(0.55 0.13 75);
-    --color-bad: oklch(0.52 0.18 28);
+    --glass-blur: blur(28px) saturate(180%);
+    --glass-blur-thick: blur(44px) saturate(180%);
+    --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.18);
+    --glass-depth: 0 1px 2px rgb(0 0 0 / 0.3), 0 24px 60px -20px rgb(0 0 0 / 0.6);
+    --blob-a: rgb(245 165 36 / 0.42);
+    --blob-b: rgb(139 92 246 / 0.38);
+    --blob-c: rgb(10 132 255 / 0.32);
+    --blob-d: rgb(255 55 95 / 0.28);
+  }
+
+  /* Light: the OS asks for it and the user hasn't picked dark, or the user picked light. */
+  :root[data-theme="light"] {
+    --color-bg: #e9ebf1;
+    --color-panel: rgb(255 255 255 / 0.56);
+    --color-panel-strong: rgb(255 255 255 / 0.78);
+    --color-raised: rgb(0 0 0 / 0.05);
+    --color-line: rgb(0 0 0 / 0.1);
+    --color-fg: #1c1c1e;
+    --color-muted: rgb(60 60 67 / 0.8);
+    --color-tally-fg: #965400;
+    --color-good: #17692f;
+    --color-warn: #8a6100;
+    --color-bad: #c4261c;
+    --color-info: #0060df;
+    --glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.7);
+    --glass-depth: 0 1px 2px rgb(0 0 0 / 0.06), 0 24px 60px -20px rgb(30 30 60 / 0.25);
+    --blob-a: rgb(245 165 36 / 0.35);
+    --blob-b: rgb(139 92 246 / 0.25);
+    --blob-c: rgb(10 132 255 / 0.22);
+    --blob-d: rgb(255 55 95 / 0.2);
+  }
+
+  html {
+    color-scheme: dark;
+    /* The whole UI scales from a 390 px phone to a 3440 px ultrawide. */
+    font-size: clamp(15px, 0.4vw + 10px, 19px);
+    background: var(--color-bg);
+    color: var(--color-fg);
+    -webkit-font-smoothing: antialiased;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  /* Four large blurred colour blobs give the glass something to refract. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(40vmax 40vmax at 8% 12%, var(--blob-a), transparent 60%),
+      radial-gradient(38vmax 38vmax at 92% 18%, var(--blob-b), transparent 60%),
+      radial-gradient(42vmax 42vmax at 78% 95%, var(--blob-c), transparent 60%),
+      radial-gradient(34vmax 34vmax at 18% 88%, var(--blob-d), transparent 60%),
+      var(--color-bg);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-tally) 40%, transparent);
+    color: var(--color-fg);
+  }
+
+  * {
+    scrollbar-color: var(--color-line) transparent;
+    scrollbar-width: thin;
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-tally);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-tally);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-underline-offset: 3px;
+  }
+
+  select option {
+    background: var(--color-bg);
+    color: var(--color-fg);
   }
 }
 
-html {
-  color-scheme: dark light;
-  background: var(--color-bg);
-  color: var(--color-fg);
-  -webkit-font-smoothing: antialiased;
-}
-
-body {
-  font-feature-settings: "ss01", "cv11";
-}
-
-::selection {
-  background: color-mix(in oklch, var(--color-tally) 40%, transparent);
-  color: var(--color-fg);
-}
-
-* {
-  scrollbar-color: var(--color-line) transparent;
-  scrollbar-width: thin;
-}
-
-input,
-textarea {
-  caret-color: var(--color-tally);
-}
-
-:focus-visible {
-  outline: 2px solid var(--color-tally);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-
-a {
-  text-underline-offset: 3px;
+@layer components {
+  /* Frosted panel: translucent fill, blur + saturation, bright top edge, soft layered shadow. */
+  .glass {
+    background: var(--color-panel);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--color-line);
+    box-shadow: var(--glass-edge), var(--glass-depth);
+  }
+  /* Sidebar, chat and sheets: thicker blur and a denser fill under text. */
+  .glass-thick {
+    background: var(--color-panel-strong);
+    -webkit-backdrop-filter: var(--glass-blur-thick);
+    backdrop-filter: var(--glass-blur-thick);
+    border: 1px solid var(--color-line);
+    box-shadow: var(--glass-edge), var(--glass-depth);
+  }
 }
 
 .num {
   font-variant-numeric: tabular-nums;
 }
 
-/* The one authored moment: the tally light breathes while a job is running. */
+/* Spring press for buttons and chips (iOS feel). */
+.press {
+  transition:
+    transform 160ms var(--ease-spring),
+    background-color 160ms var(--ease-out-expo),
+    color 160ms var(--ease-out-expo),
+    border-color 160ms var(--ease-out-expo);
+}
+.press:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+/* The tally light breathes while a job is running. */
 @keyframes tally {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in oklch, var(--color-tally) 55%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--color-tally) 55%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 6px color-mix(in oklch, var(--color-tally) 0%, transparent);
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-tally) 0%, transparent);
   }
 }
 .tally-live {
   animation: tally 1.6s var(--ease-out-expo) infinite;
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .tally-live {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .press:active:not(:disabled) {
+    transform: none;
   }
 }

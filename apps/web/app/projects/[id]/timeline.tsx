@@ -28,7 +28,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
   const ticks = Array.from({ length: Math.floor(total / 5) + 1 }, (_, i) => i * 5);
 
   return (
-    <section aria-label="Timeline" className="rounded-lg border border-line bg-bg/60 p-3">
+    <section aria-label="Timeline" className="glass rounded-lg p-3">
       <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
         <span />
         <div className="relative h-4 text-muted" aria-hidden>
@@ -41,7 +41,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
 
         <span className="self-center text-muted">Shots</span>
         <div className="relative">
-          <ol className="flex h-11 gap-px overflow-hidden rounded-md">
+          <ol className="flex h-11 gap-0.5 overflow-hidden rounded-md">
             {shots.map(({ c, i, start, end }) => {
               const live = at >= start && at < end;
               return (
@@ -51,7 +51,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
                     title={`Shot ${i + 1}: ${fmtTime(c.start)}–${fmtTime(c.end)} in the source, ${(end - start).toFixed(1)} s`}
                     aria-current={live || undefined}
                     className={cn(
-                      "flex h-full w-full items-center gap-1 overflow-hidden px-1.5 text-left transition-colors duration-150 [&_svg]:size-3 [&_svg]:shrink-0",
+                      "press flex h-full w-full items-center gap-1 overflow-hidden pr-1.5 pl-2.5 text-left transition-colors duration-150 [&_svg]:size-3 [&_svg]:shrink-0",
                       live ? "bg-tally/25 text-fg ring-1 ring-tally ring-inset" : "bg-raised text-muted hover:bg-line/70 hover:text-fg",
                     )}
                   >
@@ -64,15 +64,16 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
               );
             })}
           </ol>
-          <span className="pointer-events-none absolute -inset-y-1 w-0.5 -translate-x-1/2 rounded-full bg-tally" style={{ left: pct(at) }} aria-hidden />
+          {/* Stays inside the shots row so it never covers the ruler labels (0:00 included). */}
+          <span className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-tally shadow-[0_0_8px_var(--color-tally)]" style={{ left: pct(at) }} aria-hidden />
         </div>
 
         <span className="self-center text-muted">Captions</span>
-        <div className="relative h-7 overflow-hidden rounded-md bg-raised/50">
+        <div className="relative h-7 overflow-hidden rounded-md bg-raised">
           {plan.captions.map((p, i) => (
             <span
               key={i}
-              className="absolute inset-y-0.5 truncate rounded-sm border-l border-tally/50 bg-panel px-1 leading-6 text-muted"
+              className="absolute inset-y-0.5 truncate rounded-sm border-l-2 border-tally/60 bg-panel-strong px-1 leading-6 text-muted"
               style={{ left: pct(p.start), width: pct(p.end - p.start) }}
               title={p.words.map((w) => w.text).join(" ")}
             >
