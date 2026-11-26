@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type EditPlan, fitToFrame, openDb, outputFor, ProjectSettingsSchema, queueRenders, RATIOS, ratioSlug, schema } from "@oneclip/core";
+import { type EditPlan, fitToFrame, openDb, outputFor, planForRatio, ProjectSettingsSchema, queueRenders, RATIOS, ratioSlug, schema } from "@oneclip/core";
 
 const plan = (width: number, height: number): EditPlan =>
   ({
@@ -45,6 +45,14 @@ describe("frame ratios", () => {
     expect(fitToFrame(plan(1080, 1920), phone).editing.layout).toBe("crop-center");
     expect(fitToFrame(plan(1080, 1920), { width: 1920, height: 1080 }).editing.layout).toBe("crop-center");
     expect(fitToFrame(plan(1920, 1080), null).editing.layout).toBe("crop-center");
+  });
+
+  it("previews and renders a 9:16 analysis plan in the chosen ratio", () => {
+    const wide = planForRatio(plan(1080, 1920), "16:9", { width: 1080, height: 1920 });
+    expect(wide.output).toEqual({ width: 1920, height: 1080, fps: 30 });
+    expect(wide.editing.layout).toBe("blur-background");
+    expect(planForRatio(plan(1080, 1920), "1:1", { width: 1920, height: 1080 }, "preview").output).toEqual({ width: 540, height: 540, fps: 30 });
+    expect(planForRatio(plan(1080, 1920), "9:16", null).output).toEqual({ width: 1080, height: 1920, fps: 30 });
   });
 
   it("queues one render per clip and ratio, previews in the first ratio only", async () => {

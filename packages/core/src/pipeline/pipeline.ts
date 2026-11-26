@@ -15,9 +15,10 @@ import { ALLOWED_EXTENSIONS, extractAudio, probe, thumbnail, verifyRender, type 
 import { downloadSource, ensureAudio, ensureVideo, isRemoteSource } from "../media/source.ts";
 import type { JevResponse } from "../one/client.ts";
 import { compilePlan } from "../plan/compile.ts";
+import { planForRatio } from "../plan/frame.ts";
 import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
 import { applyInstruction, describeChanges, EDIT_EXAMPLES, planToDraft } from "../plan/revise.ts";
-import { EditPlanSchema, outputFor, RATIOS, ratioSlug, type EditPlan, type Ratio } from "../plan/schema.ts";
+import { EditPlanSchema, RATIOS, ratioSlug, type EditPlan, type Ratio } from "../plan/schema.ts";
 import { redact } from "../proc.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
@@ -399,7 +400,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   const settings = ProjectSettingsSchema.parse(project.settings);
   const quality = job.quality === "preview" ? "preview" : "final";
   const ratio: Ratio = (RATIOS as readonly string[]).includes(job.ratio ?? "") ? (job.ratio as Ratio) : "9:16";
-  const fitted = fitToFrame(EditPlanSchema.parse({ ...(clip.plan as EditPlan), output: outputFor(quality, ratio) }), project.sourceInfo as MediaInfo | null);
+  const fitted = planForRatio(EditPlanSchema.parse(clip.plan), ratio, project.sourceInfo as MediaInfo | null, quality);
   const dir = join(projectDir(cfg, project.id), "renders");
   // 9:16 keeps the old names; other ratios get a suffix so they sit side by side.
   const tag = ratio === "9:16" ? "" : `-${ratioSlug(ratio)}`;
@@ -538,18 +539,6 @@ export async function runEdit(deps: PipelineDeps, job: Job): Promise<void> {
   await queueRenders(db, project.id, "preview", clip.id);
   await step("Rendering a new preview");
   await updateJob(db, job.id, { status: "done", progress: 1, message: changes.length ? `Done with ${by}: ${changes.length} change${changes.length > 1 ? "s" : ""}` : `Done with ${by}: nothing needed changing` });
-}
-
-/**
- * A plan made for one frame shape, fitted to another: when the frame is much
- * wider than the source (a phone video in 16:9), cropping would throw most of
- * the picture away, so the clip sits on a blurred copy of itself instead.
- */
-export function fitToFrame(plan: EditPlan, source: Pick<MediaInfo, "width" | "height"> | null): EditPlan {
-  if (!source?.width || !source.height) return plan;
-  const frame = plan.output.width / plan.output.height;
-  const src = source.width / source.height;
-  return frame > src * 1.3 ? { ...plan, editing: { ...plan.editing, layout: "blur-background" } } : plan;
 }
 
 /** Queue renders for every clip in a project (or one clip), once per ratio (the project's ratios when not given). Analysis is never re-run. */
