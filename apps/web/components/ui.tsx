@@ -98,6 +98,29 @@ export function Notice({ tone = "bad", children }: { tone?: "bad" | "warn"; chil
   );
 }
 
+/** iOS segmented control: one choice out of a few, as a radio group. */
+export function Segmented<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: readonly (readonly [T, ReactNode])[]; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid auto-cols-fr grid-flow-col gap-1 rounded-md bg-raised p-1">
+      {options.map(([v, l]) => (
+        <button
+          key={v}
+          type="button"
+          role="radio"
+          aria-checked={v === value}
+          onClick={() => onChange(v)}
+          className={cn(
+            "press min-h-8 rounded-[0.6rem] px-2 text-[0.8125rem] font-medium",
+            v === value ? "bg-panel-strong text-fg shadow-[0_1px_3px_rgb(0_0_0/0.25)]" : "text-muted hover:text-fg",
+          )}
+        >
+          {l}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** iOS-style on/off switch. */
 export function Switch({ checked, onChange, label, className }: { checked: boolean; onChange: (on: boolean) => void; label: string; className?: string }) {
   return (
