@@ -64,6 +64,15 @@ describe("moments from sound and picture", () => {
     }
     expect(new Set(m.map((c) => c.id)).size).toBe(m.length);
   });
+  it("opens where the sentence under the drop begins, and ends on a full stop", () => {
+    // One sentence 38.2–43.4 s spans the drop at 40 s; another runs 52–55.4 s.
+    const line = (from: number, n: number): Word[] => Array.from({ length: n }, (_, i) => ({ word: i === n - 1 ? `w${i}.` : `w${i}`, start: from + i * 0.4, end: from + i * 0.4 + 0.35 }));
+    const said = [...line(38.2, 14), ...line(52, 9)];
+    const m = findMoments("v", s, said, "quick", "music", 1)[0]!;
+    expect(m.start).toBeCloseTo(38.2, 5);
+    const last = said.filter((w) => w.end <= m.end + 0.01).at(-1)!;
+    expect(last.word.endsWith(".") || said.every((w) => w.start >= m.end || w.end <= m.end)).toBe(true);
+  });
   it("keeps openings at least one minimum length apart", () => {
     const starts = findMoments("v", s, [], "quick", "music", 8).map((c) => c.start).sort((a, b) => a - b);
     for (let i = 1; i < starts.length; i++) expect((starts[i] as number) - (starts[i - 1] as number)).toBeGreaterThanOrEqual(10);

@@ -38,6 +38,19 @@ export function normalizeRanges(ranges: Range[], bounds: Range, minLen = 0.2): R
   return out;
 }
 
+/**
+ * Give each cut room to breathe: transcript word times sit tight on the
+ * syllables, so a cut exactly on them clips the first consonant and the last
+ * word's tail. Pads stop short of the neighbouring word, so nothing extra is heard.
+ */
+export function padCuts(cuts: Range[], words: Word[], bounds: Range, head = 0.15, tail = 0.3): Range[] {
+  return cuts.map((c) => {
+    const before = Math.max(bounds.start, ...words.filter((w) => w.end <= c.start + 0.01).map((w) => w.end));
+    const after = Math.min(bounds.end, ...words.filter((w) => w.start >= c.end - 0.01).map((w) => w.start));
+    return { start: Math.max(before, c.start - head), end: Math.min(after, c.end + tail) };
+  });
+}
+
 /** Snap a time to the nearest word boundary so cuts never split a word. */
 export function snapToWords(t: number, words: Word[], edge: "start" | "end"): number {
   let best = t;
@@ -202,6 +215,7 @@ export function compilePlan(
       );
     }
     if (!cuts.length || totalDuration(cuts) < 3) cuts = [bounds];
+    cuts = normalizeRanges(padCuts(cuts, words, limit), limit);
   }
   const outputDuration = totalDuration(cuts);
 

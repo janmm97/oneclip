@@ -1,6 +1,9 @@
 import { runProcess } from "../proc.ts";
 import type { Word } from "../transcription/types.ts";
-import { DURATION_PRESETS, joinWords, spread, type ClipCandidate, type DurationPreset } from "./segment.ts";
+import { DURATION_PRESETS, joinWords, spread, toSentences, type ClipCandidate, type DurationPreset } from "./segment.ts";
+
+/** How far (s) a moment may stretch to start or end on a whole sentence. */
+const SNAP = 4;
 
 /** Per-second measurements of the source, from FFmpeg alone (no AI, nothing leaves the machine). */
 export interface MediaSignals {
@@ -183,6 +186,7 @@ export function findMoments(
     if (picked.every((p) => Math.abs(p - t) >= min)) picked.push(t);
   }
   const wordAt = (t: number) => words.find((w) => w.start < t && w.end > t);
+  const sentences = toSentences(words);
   // Music: a moment ends before the song does and before a talking break.
   const stopAt = (t: number) => Math.min(n, t + longest, main ? Math.max(t + min, main.end + 2) : n, ...(focus?.breaks ?? []).filter((b) => b.start >= t + min).map((b) => b.start));
   return picked.map((t) => {
@@ -194,8 +198,11 @@ export function findMoments(
       const sc = boundary - Math.abs(e - t - target) / target;
       if (sc > bestScore) [best, bestScore] = [e, sc];
     }
-    const start = wordAt(t)?.start ?? t;
-    const end = Math.min(duration, wordAt(best)?.end ?? best);
+    // Never open or close mid-sentence: reach back to where the line began and on to where it ends, if it's close.
+    const open = sentences.find((x) => x.start < t + 0.5 && x.end > t);
+    const start = open && t - open.start <= SNAP ? open.start : wordAt(t)?.start ?? t;
+    const close = sentences.find((x) => x.start < best && x.end > best - 0.3);
+    const end = Math.min(duration, close && close.end - best <= SNAP && close.end <= stop ? close.end : wordAt(best)?.end ?? best);
     const inside = words.filter((w) => w.end > start && w.start < end);
     const label = `${kind === "visual" ? "Visual" : kind === "music" ? "Music" : "Sound"} moment at ${clock(start)}`;
     return {

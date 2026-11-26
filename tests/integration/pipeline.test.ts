@@ -182,6 +182,29 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     expect(readdirSync(folder)).toContain(basename(r?.path ?? ""));
   }, 300_000);
 
+  it("applies a chat edit, logs each step and queues a new preview", async () => {
+    const clip = (await deps.db.select().from(schema.clips).all()).find((c) => c.rank === 1) as typeof schema.clips.$inferSelect;
+    const id = await enqueue(deps.db, { projectId, kind: "edit", clipId: clip.id, instruction: "karaoke captions; mute shot 1" });
+    const job = await claimNext(deps.db);
+    expect(job?.kind).toBe("edit");
+    await runJob(deps, job as NonNullable<typeof job>);
+    const done = await deps.db.select().from(schema.jobs).where(eq(schema.jobs.id, id)).get();
+    expect(done?.error ?? null).toBeNull();
+    expect(done?.status).toBe("done");
+    expect(done?.log).toEqual(expect.arrayContaining(["Captions: karaoke", "Shot 1: muted", "Rendering a new preview"]));
+    const after = await deps.db.select().from(schema.clips).where(eq(schema.clips.id, clip.id)).get();
+    expect(after?.plan).toMatchObject({ editing: { captionPreset: "karaoke" }, cuts: [{ muted: true }] });
+    const next = await claimNext(deps.db);
+    expect(next).toMatchObject({ kind: "render", clipId: clip.id });
+    await runJob(deps, next as NonNullable<typeof next>);
+    // A request no rule understands fails with examples, and leaves the plan alone.
+    const bad = await enqueue(deps.db, { projectId, kind: "edit", clipId: clip.id, instruction: "make it go viral" });
+    await runJob(deps, (await claimNext(deps.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
+    const failed = await deps.db.select().from(schema.jobs).where(eq(schema.jobs.id, bad)).get();
+    expect(failed?.error).toMatch(/didn't understand.*Try:/s);
+    expect((await deps.db.select().from(schema.clips).where(eq(schema.clips.id, clip.id)).get())?.plan).toEqual(after?.plan);
+  }, 300_000);
+
   it("queues a link for download instead of rejecting it", async () => {
     const link = "https://youtu.be/icXUkIfZxyg?si=dd89rDAfK76Y8Znu";
     const { projectId: id } = await createProject(deps, { sourcePath: link, authorized: true });
