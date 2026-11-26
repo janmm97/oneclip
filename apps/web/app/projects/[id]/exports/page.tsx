@@ -8,7 +8,7 @@ import { useProject } from "@/lib/use-project";
 export default function Exports({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { view, error, clips } = useProject(id);
-  if (!view) return error ? <Notice>{error}</Notice> : <div className="h-40 animate-pulse rounded-lg bg-panel" aria-label="Loading exports" />;
+  if (!view) return error ? <Notice>{error}</Notice> : <div className="glass h-40 animate-pulse rounded-lg" aria-label="Loading exports" />;
 
   const rankOf = (clipId: string) => clips.find((c) => c.id === clipId)?.rank;
   const done = view.renders.filter((r) => r.status === "done").sort((a, b) => (rankOf(a.clipId) ?? 99) - (rankOf(b.clipId) ?? 99));
@@ -22,7 +22,7 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
             <ArrowLeft className="size-4" aria-hidden />
             Clips
           </a>
-          <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight">Exports · {view.project.title}</h1>
+          <h1 className="mt-1 truncate text-[clamp(1.5rem,1rem+1.2vw,2.5rem)] leading-tight font-bold tracking-[-0.03em]">Exports · {view.project.title}</h1>
         </div>
         {done.some((r) => r.quality === "final") ? (
           <ButtonLink href={`/api/projects/${id}/zip`} variant="primary" download>
@@ -46,7 +46,7 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
       {done.length ? (
         <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] sm:gap-5">
           {done.map((r) => (
-            <li key={r.id} className="overflow-hidden rounded-lg border border-line bg-panel">
+            <li key={r.id} className="glass overflow-hidden rounded-xl">
               <video
                 src={`/api/media/render/${r.id}`}
                 poster={r.hasThumb ? `/api/media/thumb/${r.id}` : undefined}
@@ -61,7 +61,7 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
                 <Badge tone={r.quality === "final" ? "good" : "neutral"}>{r.quality === "final" ? "1080p" : "preview"}</Badge>
                 <span className="num text-xs text-muted">{r.ratio ?? "9:16"}</span>
                 <span className="hidden text-xs text-muted sm:inline">{r.renderer}</span>
-                <a href={`/api/media/render/${r.id}?download=1`} className="ml-auto rounded p-1 text-muted hover:bg-raised hover:text-fg" aria-label="Download">
+                <a href={`/api/media/render/${r.id}?download=1`} className="press ml-auto rounded-full p-1.5 text-muted hover:bg-raised hover:text-fg" aria-label="Download">
                   <Download className="size-4" aria-hidden />
                 </a>
               </div>
@@ -69,7 +69,7 @@ export default function Exports({ params }: { params: Promise<{ id: string }> })
           ))}
         </ul>
       ) : !rendering.length ? (
-        <p className="mt-8 rounded-lg border border-dashed border-line px-4 py-10 text-center text-sm text-muted">
+        <p className="glass mt-8 rounded-xl px-4 py-10 text-center text-sm text-muted">
           Nothing rendered yet. Pick a clip and choose Render 1080p.
         </p>
       ) : null}

@@ -83,11 +83,11 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
                 onClick={() => setSelected(c.id)}
                 aria-current={c.id === clip.id}
                 className={cn(
-                  "grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-2.5 py-2 text-left transition-colors duration-150",
-                  c.id === clip.id ? "border-tally/60 bg-raised" : "border-line bg-panel hover:bg-raised",
+                  "press glass grid w-full grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-shadow duration-150",
+                  c.id === clip.id ? "ring-2 ring-tally/70" : "hover:ring-1 hover:ring-line",
                 )}
               >
-                <span className={cn("num font-semibold", c.rank === 1 ? "text-tally" : "text-muted")}>{c.rank}</span>
+                <span className={cn("num font-semibold", c.rank === 1 ? "text-tally-fg" : "text-muted")}>{c.rank}</span>
                 <span className="min-w-0">
                   <span className="block truncate text-sm">“{c.candidate.openingText}”</span>
                   <span className="num block truncate text-xs text-muted">
@@ -102,8 +102,8 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
         </ol>
       </section>
 
-      <section aria-label={`Clip ${clip.rank}`} className="grid min-w-0 content-start gap-4 rounded-lg border border-line bg-panel p-4">
-        <div className="grid place-items-center rounded-md bg-bg p-3">
+      <section aria-label={`Clip ${clip.rank}`} className="glass grid min-w-0 content-start gap-4 rounded-xl p-4">
+        <div className="grid place-items-center rounded-lg bg-black/80 p-3">
           {clip.plan && video ? (
             <Player
               key={clip.id}
@@ -201,7 +201,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
       {clip.plan ? (
         <EditChat key={clip.id} projectId={projectId} clipId={clip.id} jobs={view.jobs} refresh={refresh} />
       ) : (
-        <p className="rounded-lg border border-dashed border-line p-4 text-sm text-muted">This clip has no edit plan yet, so there is nothing to edit.</p>
+        <p className="glass rounded-xl p-4 text-sm text-muted">This clip has no edit plan yet, so there is nothing to edit.</p>
       )}
     </div>
   );

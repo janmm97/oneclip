@@ -39,7 +39,7 @@ export default function Setup() {
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Setup</h1>
+          <h1 className="text-[clamp(1.9rem,1rem+2vw,3.25rem)] leading-tight font-bold tracking-[-0.03em]">Setup</h1>
           <p className="mt-1 text-sm text-muted">
             Same checks as <code className="font-mono text-fg">pnpm run doctor</code>. Fix anything red, then start a project.
           </p>
@@ -63,7 +63,7 @@ export default function Setup() {
           <p className={cn("mt-6 text-sm font-medium", blocking ? "text-bad" : "text-good")}>
             {blocking ? `${blocking} required ${blocking === 1 ? "check fails" : "checks fail"}` : "Ready to clip"}
           </p>
-          <ul className="mt-3 divide-y divide-line rounded-lg border border-line bg-panel">
+          <ul className="mt-3 divide-y divide-line glass rounded-xl">
             {checks.map((c) => {
               const Icon = c.ok ? CircleCheck : c.required ? CircleX : CircleAlert;
               return (
@@ -83,7 +83,7 @@ export default function Setup() {
           </ul>
         </>
       ) : !error ? (
-        <ul className="mt-6 grid gap-px overflow-hidden rounded-lg border border-line" aria-label="Running checks">
+        <ul className="glass mt-6 grid gap-px overflow-hidden rounded-xl" aria-label="Running checks">
           {Array.from({ length: 6 }, (_, i) => (
             <li key={i} className="h-14 animate-pulse bg-panel" />
           ))}
