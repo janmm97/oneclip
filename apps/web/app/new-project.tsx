@@ -172,6 +172,7 @@ export function NewProject() {
                     key={r}
                     type="button"
                     aria-pressed={on}
+                    aria-disabled={on && s.ratios.length === 1 ? true : undefined}
                     onClick={() => setS({ ...s, ratios: toggleRatio(s.ratios, r) })}
                     className={cn(
                       "press inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[0.8125rem] font-medium",
