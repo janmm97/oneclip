@@ -63,7 +63,9 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
   const lastFail = view.renders.find((r) => r.clipId === clip.id && r.status === "failed");
 
   return (
-    <div className="mt-6 grid gap-4 xl:grid-cols-[13rem_minmax(0,1fr)_20rem]">
+    // Side panels grow with the screen, the monitor takes the rest. --monitor-h sizes the player from the
+    // window height so the player and timeline fit on one screen at any size or ratio.
+    <div className="mt-4 grid gap-4 [--monitor-h:min(70dvh,40rem)] lg:grid-cols-[minmax(11rem,15vw)_minmax(0,1fr)_minmax(18rem,22vw)] lg:[--monitor-h:clamp(24rem,calc(100dvh_-_30rem),120rem)]">
       <section aria-labelledby="ranked" className="grid content-start gap-3">
         <div className="flex items-center justify-between">
           <h2 id="ranked" className="text-sm font-medium text-muted">
@@ -74,7 +76,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
             Render all
           </Button>
         </div>
-        <ol className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1">
+        <ol className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-1">
           {clips.map((c) => (
             <li key={c.id}>
               <button
@@ -114,7 +116,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
               durationInFrames={video.durationInFrames}
               controls
               acknowledgeRemotionLicense
-              style={{ width: "100%", maxWidth: `calc(26rem * ${video.width} / ${video.height})`, aspectRatio: `${video.width} / ${video.height}`, borderRadius: 6, overflow: "hidden", background: "black" }}
+              style={{ width: "100%", maxWidth: `calc(var(--monitor-h) * ${video.width} / ${video.height})`, aspectRatio: `${video.width} / ${video.height}`, borderRadius: 6, overflow: "hidden", background: "black" }}
             />
           ) : (
             <div className="grid aspect-9/16 w-56 place-items-center p-4 text-center text-xs text-muted">{clip.planError ?? "No edit plan for this clip."}</div>

@@ -13,7 +13,7 @@ const TONE = { ready: "good", failed: "bad", queued: "neutral" } as const;
 export default async function Home() {
   const projects = await app().db.select().from(schema.projects).orderBy(desc(schema.projects.createdAt)).limit(20).all();
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1fr)_20rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
       <section>
         <h1 className="text-2xl font-semibold tracking-tight">Find the clips worth posting</h1>
         <p className="mt-1 max-w-prose text-sm text-muted">

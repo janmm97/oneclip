@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body className="min-h-dvh bg-bg font-sans text-fg antialiased">
         <header className="border-b border-line">
-          <nav className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5 text-sm">
+          <nav className="flex h-14 items-center gap-6 px-[clamp(1rem,2vw,2.5rem)] text-sm">
             <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
               <span className="size-2.5 rounded-full bg-tally" aria-hidden />
               OneClip
@@ -30,7 +30,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="ml-auto hidden text-xs text-muted sm:block">Runs on this machine · only clip text leaves it (Jev, AI planner)</span>
           </nav>
         </header>
-        <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
+        {/* Full width: the editor uses the whole screen; pages that read better narrow cap themselves. */}
+        <main className="px-[clamp(1rem,2vw,2.5rem)] py-6">{children}</main>
       </body>
     </html>
   );
