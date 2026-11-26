@@ -1,11 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { buildScenes, type ClipCandidate, findShots, jevState, LocalVisionDescriber, MAX_FRAME_BYTES, OpenRouterVisionDescriber, parseReply, pickDescriber, type Scene, type SceneDescriber, withScenes } from "@oneclip/core";
+import { buildScenes, CLAUDE_VISION_ARGS, type ClipCandidate, findShots, jevState, parseReply, pickDescriber, ProjectSettingsSchema, resultMessage, type Scene, type SceneDescriber, visionMessage, withScenes } from "@oneclip/core";
 
 describe("findShots", () => {
   it("cuts at scene changes and merges blips into the shot before", () => {
@@ -80,71 +78,35 @@ describe("withScenes and Jev", () => {
     expect(jevState(withScenes(c, scenes))).toHaveProperty("on_screen");
   });
 
-  it("off means no model", async () => {
-    const d = await pickDescriber("off", { localUrl: "http://localhost:1", openrouterModels: [], one: () => ({}) as never });
-    expect(d).toBeUndefined();
+  it("off, or no Claude Code installed, means nobody describes the shots", async () => {
+    expect(await pickDescriber("off", { claudeBin: process.execPath })).toBeUndefined();
+    expect(await pickDescriber("agent", { claudeBin: "no-such-claude-bin" })).toBeUndefined();
+  });
+
+  it("reads the old vision choices as agent, keeps off", () => {
+    for (const v of [undefined, "auto", "local", "openrouter", "agent"]) expect(ProjectSettingsSchema.parse({ vision: v }).vision).toBe("agent");
+    expect(ProjectSettingsSchema.parse({ vision: "off" }).vision).toBe("off");
   });
 });
 
-describe("LocalVisionDescriber", () => {
-  it("turns thinking off and retries frame by frame when a batch reply is garbled", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "oneclip-vlm-"));
-    const frames = [1, 2].map((n) => {
-      const path = join(dir, `${n}.jpg`);
-      writeFileSync(path, "x");
-      return { path, at: n };
-    });
-    const bodies: { chat_template_kwargs?: unknown; messages: { content: unknown }[] }[] = [];
-    const server = createServer((req, res) => {
-      let raw = "";
-      req.on("data", (c) => (raw += c));
-      req.on("end", () => {
-        const body = JSON.parse(raw);
-        bodies.push(body);
-        const images = (body.messages[1].content as { type: string }[]).filter((p) => p.type === "image_url").length;
-        const content = images > 1 ? '{"frames":[{"i":1,"description":"cut off' : `{"frames":[{"i":1,"description":"frame ${bodies.length - 1}"}]}`;
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify({ choices: [{ message: { content } }] }));
-      });
-    });
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-    try {
-      const { port } = server.address() as AddressInfo;
-      const d = new LocalVisionDescriber(`http://127.0.0.1:${port}/v1`, "test-vlm");
-      const out = await d.describe(frames, "test");
-      expect(out.map((x) => x.description)).toEqual(["frame 1", "frame 2"]);
-      expect(bodies).toHaveLength(3);
-      expect(bodies[0]?.chat_template_kwargs).toEqual({ enable_thinking: false });
-    } finally {
-      server.close();
-      rmSync(dir, { recursive: true, force: true });
-    }
+describe("Claude Code vision flags", () => {
+  it("gives Claude no tools at all, so a frame's text can't read files even when the user's settings allow Read", () => {
+    expect(CLAUDE_VISION_ARGS[CLAUDE_VISION_ARGS.indexOf("--tools") + 1]).toBe("");
+    expect(CLAUDE_VISION_ARGS.some((a) => /^--(allowed-?tools|dangerously|permission-mode|add-dir)/i.test(a))).toBe(false);
+    expect(CLAUDE_VISION_ARGS).toContain("--strict-mcp-config");
   });
-});
 
-describe("LocalVisionDescriber failures", () => {
-  it("asks once when the server errors (no frame-by-frame retry of a dead server)", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "oneclip-vlm-"));
-    const frames = [1, 2].map((n) => {
-      const path = join(dir, `${n}.jpg`);
-      writeFileSync(path, "x");
-      return { path, at: n };
-    });
-    let hits = 0;
-    const server = createServer((_req, res) => {
-      hits++;
-      res.statusCode = 500;
-      res.end("model crashed");
-    });
-    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-    try {
-      const { port } = server.address() as AddressInfo;
-      await expect(new LocalVisionDescriber(`http://127.0.0.1:${port}/v1`, "m").describe(frames, "test")).rejects.toThrow(/HTTP 500/);
-      expect(hits).toBe(1);
-    } finally {
-      server.close();
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it("sends the frames inline as one stream-json user message", () => {
+    const m = JSON.parse(visionMessage([{ data: "AAA", at: 3 }, { data: "BBB", at: 70 }], "ctx"));
+    expect(m.type).toBe("user");
+    const images = m.message.content.filter((c: { type: string }) => c.type === "image");
+    expect(images.map((c: { source: { data: string } }) => c.source.data)).toEqual(["AAA", "BBB"]);
+  });
+
+  it("reads the last result message of the stream", () => {
+    const out = ['{"type":"system","subtype":"init"}', "not json", '{"type":"result","is_error":false,"structured_output":{"frames":[]}}', ""].join("\r\n");
+    expect(resultMessage(out)?.structured_output).toEqual({ frames: [] });
+    expect(resultMessage('{"type":"assistant"}')).toBeUndefined();
   });
 });
 
@@ -190,28 +152,5 @@ describe.skipIf(!hasFfmpeg)("buildScenes (real FFmpeg)", () => {
     const failed = await buildScenes({ ffmpeg: "ffmpeg", source: src, dir, motion, duration: 12, context: "test", describer: failing });
     expect(failed.describedBy).toBeNull();
     expect(failed.note).toMatch(/model offline/);
-  }, 60_000);
-});
-
-describe.skipIf(!hasFfmpeg)("OpenRouterVisionDescriber frame size", () => {
-  it("shrinks a busy frame until its base64 fits the One CLI command line", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "oneclip-fit-"));
-    mkdirSync(join(dir, "frames"));
-    const big = join(dir, "frames", "0001.jpg");
-    // Random noise barely compresses: a 384 px frame of it is far over the limit.
-    spawnSync("ffmpeg", ["-y", "-v", "error", "-f", "lavfi", "-i", "nullsrc=s=384x216,geq=random(1)*255:128:128", "-frames:v", "1", "-q:v", "2", big]);
-    expect(statSync(big).size).toBeGreaterThan(MAX_FRAME_BYTES);
-    let body = "";
-    const one = {
-      openRouterChat: async (req: { messages: unknown[] }) => {
-        body = JSON.stringify(req);
-        return { content: '{"frames":[{"i":1,"description":"static"}]}', model: "m" };
-      },
-    };
-    const d = new OpenRouterVisionDescriber(one as never, ["m"], "ffmpeg");
-    expect(await d.describe([{ path: big, at: 1 }], "test")).toEqual([{ description: "static", action: undefined, tags: undefined }]);
-    expect(body.length).toBeLessThan(30_000);
-    expect(existsSync(join(dir, "frames-small", "0001.jpg"))).toBe(true);
-    rmSync(dir, { recursive: true, force: true });
   }, 60_000);
 });

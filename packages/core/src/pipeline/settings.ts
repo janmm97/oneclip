@@ -21,8 +21,11 @@ export const ProjectSettingsSchema = z.object({
   captions: z.enum(CAPTION_MODES).default("english"),
   /** What kind of source this is (music video, podcast, gameplay…). auto: detected from the page and the file. */
   content: z.enum(["auto", ...CONTENT_TYPE_KEYS]).default("auto"),
-  /** Who describes what's on screen: auto (a local LM Studio vision model if there is one), local, openrouter (paid, via One) or off. */
-  vision: z.enum(["auto", "local", "openrouter", "off"]).default("auto"),
+  /**
+   * Who describes what's on screen: agent (the user's Claude Code, when installed) or off (frames and contact sheets only).
+   * Projects saved with the old choices (auto, local, openrouter) read as agent.
+   */
+  vision: z.preprocess((v) => (v === "off" ? "off" : "agent"), z.enum(["agent", "off"])),
   /** Frame shapes to render each clip in (one file per ratio). */
   ratios: z.array(z.enum(RATIOS)).min(1).max(RATIOS.length).default(["9:16"]).transform((r) => [...new Set(r)]),
 });
