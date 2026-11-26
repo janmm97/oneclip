@@ -23,6 +23,7 @@ import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
 import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
 import type { YouTubeMeta } from "../youtube.ts";
 import { faceSafeCaptions } from "../vision/faces.ts";
+import { smartReframe } from "../vision/reframe.ts";
 import { buildScenes, withScenes, type Scene, type SceneDescriber } from "../vision/scenes.ts";
 import { enqueue, progressUpdate, updateJob, type Job } from "./jobs.ts";
 import { ProjectSettingsSchema, STAGE_LABELS, type ProjectSettings, type Stage } from "./settings.ts";
@@ -404,9 +405,13 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   const slug = `${String(clip.rank).padStart(2, "0")}-${quality}${tag}`;
   const workDir = join(projectDir(cfg, project.id), "work", slug);
   mkdirSync(workDir, { recursive: true });
+  const vision = { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: project.sourceInfo as MediaInfo | null, workDir, modelsDir: join(cfg.dataDir, "models") };
+  // Each shot framed on its own: follow the subject, fit a wide shot, or split two people.
+  await updateJob(db, job.id, { stage: "render", progress: 0, message: "Reframing shots" });
+  const reframed = await smartReframe(fitted, { ...vision, onStep: (message) => void updateJob(db, job.id, { message }) });
   // Captions go where no face is, per page, for this frame shape.
   await updateJob(db, job.id, { stage: "render", progress: 0, message: "Placing captions clear of faces" });
-  const plan = await faceSafeCaptions(fitted, { ffmpeg: cfg.ffmpeg, sourcePath: project.sourcePath, source: project.sourceInfo as MediaInfo | null, workDir, modelsDir: join(cfg.dataDir, "models") });
+  const plan = await faceSafeCaptions(reframed.plan, vision, reframed.faces);
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);

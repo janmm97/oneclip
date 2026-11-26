@@ -152,6 +152,7 @@ function mixCuts(segments: NonNullable<PlanDraft["segments"]>, limit: Range): Cu
     if (sg.speed !== undefined && sg.speed !== 1) cut.speed = sg.speed;
     if (sg.volume !== undefined && sg.volume !== 1) cut.volume = sg.volume;
     if (sg.cropMode) cut.cropMode = sg.cropMode;
+    if (sg.frame) cut.frame = sg.frame;
     return [cut];
   });
 }

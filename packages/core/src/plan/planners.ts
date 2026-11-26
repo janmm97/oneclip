@@ -8,7 +8,7 @@ import { DEFAULT_OPENROUTER_MODELS } from "../config.ts";
 import { OneClient } from "../one/client.ts";
 import { redact, runProcess } from "../proc.ts";
 import type { Word } from "../transcription/types.ts";
-import { CAPTION_PRESETS, CROP_MODES, LAYOUTS, PlanDraftSchema, TEMPLATES, TRANSITION_PRESETS, type PlanDraft } from "./schema.ts";
+import { CAPTION_PRESETS, CROP_MODES, FRAME_MODES, LAYOUTS, PlanDraftSchema, TEMPLATES, TRANSITION_PRESETS, type PlanDraft } from "./schema.ts";
 
 export interface PlanInput {
   candidate: ClipCandidate;
@@ -77,7 +77,8 @@ Return ONLY a JSON object matching the schema you were given. Rules:
 - Times are in seconds of the SOURCE video and must stay inside [start, end] of the clip.
 - "keep" lists the ranges to keep (drop rambles, false starts, filler). Empty means keep everything.
 - Allowed values only: template ${TEMPLATES.join("|")}; layout ${LAYOUTS.join("|")}; cropMode ${CROP_MODES.join("|")}; captionPreset ${CAPTION_PRESETS.join("|")}; transitionPreset ${TRANSITION_PRESETS.join("|")}.
-- zoomIntensity 0..0.3. Up to 8 emphasis words that carry the point. A title of at most 80 characters.`;
+- zoomIntensity 0..0.3. Up to 8 emphasis words that carry the point. A title of at most 80 characters.
+- Framing is automatic per shot (follow the speaker, fit wide shots, split two people). Only set segments[].frame to override it: mode ${FRAME_MODES.join("|")}, x/y 0..1 (crop window position), x2/y2 for the bottom half of a split, zoom 1..3.`;
 
 export function agentPayload({ candidate, words, evaluation, style }: PlanInput) {
   return {

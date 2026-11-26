@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { AbsoluteFill, Audio, interpolate, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
-import { CAPTION_STYLES, type Caption, type EditPlan } from "@oneclip/core/browser";
+import { CAPTION_STYLES, frameOf, SPLIT_Y, type Caption, type EditPlan } from "@oneclip/core/browser";
 
 export interface ClipProps {
   plan: EditPlan;
@@ -8,8 +8,6 @@ export interface ClipProps {
   src: string;
   [key: string]: unknown;
 }
-
-const CROP_X = { center: 50, "left-third": 20, "right-third": 80 } as const;
 
 /** ASS &HAABBGGRR to CSS rgba. */
 export function assToCss(c: string): string {
@@ -41,21 +39,32 @@ function Footage({ plan, src }: ClipProps) {
     <>
       {plan.cuts.map((c, i) => {
         const frames = cutFrames(c, fps);
-        const x = CROP_X[c.cropMode ?? plan.editing.cropMode];
+        const f = frameOf(c, plan);
         const rate = c.speed ?? 1;
         const trim = Math.round(c.start * fps);
         // The picture's own sound plays unless the shot is muted or borrows sound from another moment.
         const ownSound = !c.muted && c.audioFrom === undefined;
         const volume = c.volume ?? 1;
+        const video = (style: CSSProperties, sound = true) => <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted={!sound || !ownSound} volume={volume} style={style} />;
         const seq = (
           <Sequence key={i} from={from} durationInFrames={frames} layout="none">
-            {plan.editing.layout === "blur-background" ? (
+            {f.mode === "fit" ? (
               <>
-                <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted style={{ ...cover(x), filter: "blur(40px) brightness(0.6)", transform: "scale(1.15)" }} />
-                <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted={!ownSound} volume={volume} style={{ position: "absolute", width: "100%", height: "100%", objectFit: "contain" }} />
+                {video({ ...cover(0.5, 0.5), filter: "blur(40px) brightness(0.6)", transform: "scale(1.15)" }, false)}
+                {video({ position: "absolute", width: "100%", height: "100%", objectFit: "contain" })}
+              </>
+            ) : f.mode === "split" ? (
+              // Same maths as FFmpeg: cover each half, zoom, then place the window at x/y.
+              <>
+                <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "50%", overflow: "hidden" }}>
+                  {video(zoomed(f.x ?? 0.5, f.y ?? SPLIT_Y, f.zoom ?? 1))}
+                </div>
+                <div style={{ position: "absolute", left: 0, top: "50%", width: "100%", height: "50%", overflow: "hidden" }}>
+                  {video(zoomed(f.x2 ?? 0.5, f.y2 ?? SPLIT_Y, f.zoom ?? 1), false)}
+                </div>
               </>
             ) : (
-              <OffthreadVideo src={src} trimBefore={trim} playbackRate={rate} muted={!ownSound} volume={volume} style={cover(x)} />
+              video(cover(f.x ?? 0.5, f.y ?? 0.5))
             )}
             {!c.muted && c.audioFrom !== undefined ? <Audio src={src} trimBefore={Math.round(c.audioFrom * fps)} playbackRate={rate} volume={volume} /> : null}
           </Sequence>
@@ -81,7 +90,10 @@ function Bed({ plan, src }: ClipProps) {
   );
 }
 
-const cover = (x: number): CSSProperties => ({ position: "absolute", width: "100%", height: "100%", objectFit: "cover", objectPosition: `${x}% 50%` });
+/** Window position x/y (0..1) has the same meaning as CSS object-position. */
+const cover = (x: number, y: number): CSSProperties => ({ position: "absolute", width: "100%", height: "100%", objectFit: "cover", objectPosition: `${x * 100}% ${y * 100}%` });
+/** Cover, then zoom about the window position: scaling about the same point keeps (scaled − box) · x as the offset. */
+const zoomed = (x: number, y: number, z: number): CSSProperties => ({ ...cover(x, y), transform: `scale(${z})`, transformOrigin: `${x * 100}% ${y * 100}%` });
 
 function Captions({ plan, boxed }: { plan: EditPlan; boxed?: boolean }) {
   const frame = useCurrentFrame();

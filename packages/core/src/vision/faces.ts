@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { CAPTION_STYLES } from "../render/ass.ts";
+import { boxesOf, frameOf } from "../plan/frame.ts";
 import type { EditPlan } from "../plan/schema.ts";
 import { runProcess } from "../proc.ts";
 
@@ -20,7 +21,6 @@ export const YUNET = {
   file: "face_detection_yunet_2023mar.onnx",
 };
 const SIZE = 640;
-const CROP_X = { center: 0.5, "left-third": 0.2, "right-third": 0.8 } as const;
 /** Where a caption centre may go: below the title pill, above the platform buttons and description. */
 const SAFE = { top: 0.2, bottom: 0.8 };
 
@@ -49,16 +49,9 @@ export function decodeYunet(out: Record<string, { data: ArrayLike<number> }>, th
   return kept;
 }
 
-/** A face in the source frame (fractions) to where it lands in the output frame (fractions), for the plan's layout. */
-export function toOutput(face: FaceBox, src: { width: number; height: number }, plan: EditPlan, cropMode: keyof typeof CROP_X): FaceBox {
-  const { width: W, height: H } = plan.output;
-  const blur = plan.editing.layout === "blur-background";
-  const k = blur ? Math.min(W / src.width, H / src.height) : Math.max(W / src.width, H / src.height);
-  const ox = blur ? (src.width * k - W) / 2 : (src.width * k - W) * CROP_X[cropMode];
-  const oy = (src.height * k - H) / 2;
-  const fx = (v: number) => (v * src.width * k - ox) / W;
-  const fy = (v: number) => (v * src.height * k - oy) / H;
-  return { x0: fx(face.x0), y0: fy(face.y0), x1: fx(face.x1), y1: fy(face.y1) };
+/** A face in the source frame (fractions) to where it lands in the output frame (fractions), for this cut's framing (a split can show it twice). */
+export function toOutput(face: FaceBox, src: { width: number; height: number }, plan: EditPlan, cut: EditPlan["cuts"][number]): FaceBox[] {
+  return boxesOf(face, src, plan.output, frameOf(cut, plan));
 }
 
 /**
@@ -140,8 +133,8 @@ async function yunet(modelsDir: string) {
   };
 }
 
-/** Faces in one source frame (fractions of the source), from a 640×640 letterboxed BGR grab. */
-async function facesAt(ffmpeg: string, sourcePath: string, at: number, src: { width: number; height: number }, workDir: string, modelsDir: string): Promise<FaceBox[]> {
+/** Faces in one source frame (fractions of the source), from a 640×640 letterboxed BGR grab. Throws if the model can't load. */
+export async function facesAt(ffmpeg: string, sourcePath: string, at: number, src: { width: number; height: number }, workDir: string, modelsDir: string): Promise<FaceBox[]> {
   const raw = join(workDir, "face-frame.bgr");
   const r = await runProcess(ffmpeg, ["-y", "-v", "error", "-ss", at.toFixed(3), "-i", sourcePath, "-frames:v", "1", "-vf", `scale=${SIZE}:${SIZE}:force_original_aspect_ratio=decrease,pad=${SIZE}:${SIZE}:0:0`, "-pix_fmt", "bgr24", "-f", "rawvideo", raw], { timeoutMs: 30_000 });
   if (r.code !== 0 || !existsSync(raw)) return [];
@@ -152,7 +145,11 @@ async function facesAt(ffmpeg: string, sourcePath: string, at: number, src: { wi
   const data = new Float32Array(3 * plane);
   for (let i = 0; i < plane; i++) for (let ch = 0; ch < 3; ch++) data[ch * plane + i] = px[i * 3 + ch] as number;
   session ??= yunet(modelsDir);
-  const s = (await session) as Awaited<ReturnType<typeof yunet>>;
+  // A failed load (no network on first run) is retried next time instead of sticking.
+  const s = (await session.catch((e) => {
+    session = undefined;
+    throw e;
+  })) as Awaited<ReturnType<typeof yunet>>;
   const k = Math.min(SIZE / src.width, SIZE / src.height);
   return decodeYunet(await s.run({ input: s.tensor(data) })).map((b) => ({ x0: b.x0 / k / src.width, y0: b.y0 / k / src.height, x1: b.x1 / k / src.width, y1: b.y1 / k / src.height }));
 }
@@ -161,20 +158,25 @@ async function facesAt(ffmpeg: string, sourcePath: string, at: number, src: { wi
  * Face-safe captions: looks at three frames of every cut with a small local
  * face detector and moves each caption page off the faces. Any failure (no
  * model, no network on first run, a bad frame) leaves the plan as it was.
+ * `sourceFaces` (per cut, source fractions) skips the sampling when smart reframe already looked.
  */
 export async function faceSafeCaptions(
   plan: EditPlan,
   o: { ffmpeg: string; sourcePath: string; source: { width: number; height: number } | null; workDir: string; modelsDir: string },
+  sourceFaces?: FaceBox[][],
 ): Promise<EditPlan> {
   if (!plan.captions.length || !o.source?.width || !o.source.height) return plan;
   const src = o.source;
   try {
     const perCut: FaceBox[][] = [];
-    for (const c of plan.cuts.slice(0, 40)) {
+    for (const [i, c] of plan.cuts.slice(0, 40).entries()) {
       const len = c.end - c.start;
-      const faces: FaceBox[] = [];
-      for (const f of [0.2, 0.5, 0.8]) faces.push(...(await facesAt(o.ffmpeg, o.sourcePath, c.start + len * f, src, o.workDir, o.modelsDir)));
-      perCut.push(faces.map((b) => toOutput(b, src, plan, c.cropMode ?? plan.editing.cropMode)));
+      let faces = sourceFaces?.[i];
+      if (!faces) {
+        faces = [];
+        for (const f of [0.2, 0.5, 0.8]) faces.push(...(await facesAt(o.ffmpeg, o.sourcePath, c.start + len * f, src, o.workDir, o.modelsDir)));
+      }
+      perCut.push(faces.flatMap((b) => toOutput(b, src, plan, c)));
     }
     return placeCaptions(plan, perCut);
   } catch {

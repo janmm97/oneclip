@@ -22,7 +22,7 @@
     "sample": "tsx scripts/make-sample.ts",
     "e2e": "tsx scripts/e2e.ts",
     "lint": "tsc --noEmit -p tsconfig.json && pnpm --filter @oneclip/web typecheck",
-    "test": "vitest run",
+    "test": "vitest run --dir tests",
     "build": "pnpm --filter @oneclip/web build"
   },
   "devDependencies": {

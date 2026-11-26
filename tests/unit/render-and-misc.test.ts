@@ -147,7 +147,7 @@ describe("FFmpeg filter graph", () => {
     expect(g).toContain("[1:a]asplit=1[bs]");
     expect(g).toContain("[2:a]asplit=1[as0]");
     expect(g).toContain("[as0]atrim=start=1.000:end=5.000");
-    expect(g).toContain("crop=1080:1920:(iw-ow)*0.2:(ih-oh)/2");
+    expect(g).toContain("crop=1080:1920:(iw-ow)*0.200:(ih-oh)*0.500");
     expect(g).toContain("setpts=(PTS-STARTPTS)/0.500");
     expect(g).toContain("atempo=0.500,volume=1.500");
     expect(g).toContain("anullsrc=r=48000:cl=stereo,atrim=duration=1.000[a2]");
