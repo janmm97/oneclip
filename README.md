@@ -2,7 +2,7 @@
 
 OneClip is an open-source AI video clipper powered by [One](https://withone.ai), TypeSafe Jev and AI editing agents. It finds the strongest hooks in a long video and turns them into short vertical clips, on your own computer.
 
-- **Local first.** Transcription, cutting, captions and rendering all run on your machine. The only thing that leaves it is clip text: sent to Jev for scoring and, by default, to an AI planner (OpenRouter via One, Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except Jev ([Privacy](#privacy)).
+- **Local first.** Transcription, cutting, captions and rendering all run on your machine. What leaves it: clip text, sent to Jev for scoring and, by default, to an AI planner (OpenRouter via One, Claude Code or OpenCode) for edit plans; and, when Claude Code is installed, one still frame per shot, sent through your Claude Code to describe the scenes. Pick the `template` planner and `--vision off` to keep it off every AI service except Jev ([Privacy](#privacy)).
 - **Ranked by Jev, not by vibes.** Every candidate clip gets six scored dimensions, a context check and a hook type from TypeSafe's Jev, and the ranking explains itself.
 - **Real files out.** You get playable 1080×1920, 30 fps MP4s with word-by-word captions, ready to post.
 
@@ -179,7 +179,7 @@ Shots are described by the `vision` setting:
 
 | `vision` | Who describes the shots |
 |---|---|
-| `agent` (default) | The agent you run OneClip with: Claude Code (`CLAUDE_BIN`), in print mode with only its Read tool, 8 frames per call, in a temp folder holding just those frames. No extra model, key or server. If Claude Code isn't installed, nobody, as with `off`. |
+| `agent` (default) | The agent you run OneClip with: Claude Code (`CLAUDE_BIN`), in print mode with no tools at all (the frames go in as images, 8 per call), no MCP servers and no saved session. Uses your Claude plan: about 1 call per 8 shots. No extra model, key or server. If Claude Code isn't installed (or is the npm `claude.cmd` on Windows, see Troubleshooting), nobody, as with `off`. |
 | `off` | Nobody: your agent reads the frames and contact sheets itself when you ask it to edit. |
 
 Projects saved with the old choices (`auto`, `local`, `openrouter`) now read as `agent`.
@@ -230,7 +230,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 
 ## Privacy
 
-- Your video, audio and renders never leave your machine.
+- Your video, audio and renders never leave your machine. With `vision` on `agent` (the default) and Claude Code installed, one still frame per shot goes to Anthropic through your own Claude Code; use `--vision off` to keep frames local.
 - Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
 - Links are downloaded to your computer; nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
@@ -242,6 +242,7 @@ Only process videos you own or are authorised to edit.
 
 | Symptom | Fix |
 |---|---|
+| Scenes are never described on Windows, though Claude Code is installed | An npm-installed Claude Code is `claude.cmd`, which OneClip can't start without a shell. Install the native build (`claude.exe`) or set `CLAUDE_BIN` to a `.exe` |
 | `pnpm setup` does something unexpected | Use `pnpm run setup`; `setup` and `doctor` are pnpm built-ins |
 | "One CLI not found" | `npm i -g @withone/cli`, or set `ONE_BIN` |
 | "TypeSafe not connected" | `one add typesafe`; if you have several, set `ONE_TYPESAFE_KEY` |
