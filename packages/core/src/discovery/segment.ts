@@ -16,7 +16,7 @@ export interface ClipCandidate {
   media?: CandidateMedia;
   /** What kind of source this is and where the clip sits in it (see profile.ts). */
   content?: { type: string; label: string; guide: string; section: string };
-  /** What a vision model saw on screen, one line per shot ("0:03 close-up of… (action)"). */
+  /** What the scene describer saw on screen, one line per shot ("0:03 close-up of… (action)"). */
   onScreen?: string;
 }
 

@@ -4,6 +4,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+- Scene descriptions now come from the agent you run OneClip with. The "Scene vision" choice is gone from the web form: Claude Code (found as `CLAUDE_BIN`) looks at one frame per shot, 8 at a time, in print mode with only its Read tool, in a temp folder that holds just those frames, with no MCP servers and no saved session. The LM Studio and OpenRouter vision options and their `ONECLIP_VISION_*` settings are removed. `pnpm clip --vision agent|off`; projects saved with `auto`, `local` or `openrouter` read as `agent`. Without Claude Code, the frames and contact sheets wait for your agent as before.
+
 ### Fixed
 - Captions covered faces in the Remotion renderer: the caption offset was a percentage of the frame *width*, so on 9:16 the text sat about a third of the way down, on the speakers' faces. Both renderers now centre each caption page on a height fraction (default lower third: 72%, 76% for `clean`). Emphasised words in Remotion no longer run into the next word.
 

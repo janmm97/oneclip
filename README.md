@@ -103,7 +103,7 @@ Want to try it without your own footage? `pnpm sample` makes a synthetic test vi
 | `pnpm run setup [--skip-python] [--model base]` | First-run setup (see above) |
 | `pnpm run doctor [--test-jev]` | Checks Node, FFmpeg, libass, One, TypeSafe, Jev, transcription, editing agent, Remotion |
 | `pnpm clip <video> [--preset standard] [--top 5] [--candidates 24] [--planner auto] [--renderer remotion] [--quality final] [--captions english\|original\|off] [--content auto\|music_video\|podcast\|gameplay\|…] [--no-render]` | The whole pipeline without the UI |
-| `pnpm clip <video> --vision auto\|local\|openrouter\|off` | How shots are described (see [Editing with your agent](#editing-with-your-agent)) |
+| `pnpm clip <video> --vision agent\|off` | Whether your agent describes the shots (see [Editing with your agent](#editing-with-your-agent)) |
 | `pnpm run edit --plan edit.json (--project <id> \| --source video.mp4) [--ratio 9:16,16:9] [--quality preview] [--dry-run]` | Render an edit plan your agent (or you) wrote: shot order, borrowed audio, speed, mutes, audio bed |
 | `pnpm eval:hooks [--dry] [--feedback] [--json]` | Runs Jev over `datasets/` and reports precision@K, ranking agreement, strong-hook recall and false-positive rate |
 | `pnpm sample` / `pnpm e2e [--renderer remotion]` | Synthetic test video / full run on it |
@@ -170,21 +170,19 @@ If an agent's output doesn't validate, OneClip falls back to the template planne
 
 OneClip saves what it saw and heard in each project folder (`.oneclip/projects/<id>/`), so Claude Code, OpenCode or any agent can re-cut a clip like an editor would:
 
-- `scenes.json`: every shot with its times and, when a vision model ran, what's on screen and what happens;
+- `scenes.json`: every shot with its times and, when your agent described them, what's on screen and what happens;
 - `frames/` and `sheets/`: one frame per shot and 4×4 contact sheets;
 - `transcript.json`: every word with its time;
 - `hooks.live.jsonl`: Jev's hook scores.
 
 Shots are described by the `vision` setting:
 
-| `vision` | Who describes the shots | Cost |
-|---|---|---|
-| `auto` (default) | A local vision model in [LM Studio](https://lmstudio.ai) if one is downloaded, otherwise nobody | Free |
-| `local` | LM Studio or any OpenAI-compatible server (`ONECLIP_VISION_URL`, `ONECLIP_VISION_MODEL`) | Free, nothing leaves your PC |
-| `openrouter` | Vision models through your One OpenRouter connection | Paid per frame |
-| `off` | Nobody: your agent reads the contact sheets itself | Free |
+| `vision` | Who describes the shots |
+|---|---|
+| `agent` (default) | The agent you run OneClip with: Claude Code (`CLAUDE_BIN`), in print mode with only its Read tool, 8 frames per call, in a temp folder holding just those frames. No extra model, key or server. If Claude Code isn't installed, nobody, as with `off`. |
+| `off` | Nobody: your agent reads the frames and contact sheets itself when you ask it to edit. |
 
-Measured: `qwen/qwen3.5-4b` in LM Studio described 8 shots of a 89 s gameplay video in 101 s on an RTX 3050 Laptop GPU (4 GB). It got the setting and main events right, and misnamed some small objects.
+Projects saved with the old choices (`auto`, `local`, `openrouter`) now read as `agent`.
 
 The skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md) teaches your agent pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`.
 

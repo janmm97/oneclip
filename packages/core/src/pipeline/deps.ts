@@ -18,7 +18,7 @@ export function createDeps(db: Db, cfg: Config, extra: { remotion?: VideoRendere
     transcriber: (s) => pickTranscriber(s.transcriber, cfg.python),
     evaluator: (cache) => new JevHookEvaluator(one, { model: cfg.jevModel, concurrency: cfg.jevConcurrency, cache }),
     planner: (s) => pickPlanner(s.planner, cfg, one),
-    describer: (s) => pickDescriber(s.vision, { localUrl: cfg.visionUrl, localModel: cfg.visionModel, openrouterModels: cfg.visionModels, one: () => one, ffmpeg: cfg.ffmpeg }),
+    describer: (s) => pickDescriber(s.vision, { claudeBin: cfg.claudeBin }),
     renderers: { ffmpeg: new FfmpegRenderer(cfg.ffmpeg), remotion: extra.remotion },
   };
 }

@@ -57,19 +57,13 @@ const PLANNERS = [
   ["opencode", "OpenCode"],
   ["template", "Template (no agent)"],
 ] as const;
-const VISION = [
-  ["auto", "Auto (local model if found)"],
-  ["local", "Local model (LM Studio)"],
-  ["openrouter", "OpenRouter via One (paid)"],
-  ["off", "Off (frames only)"],
-] as const;
 
 export function NewProject() {
   const router = useRouter();
   const [source, setSource] = useState("");
   const [meta, setMeta] = useState<YouTubeMeta>();
   const [authorized, setAuthorized] = useState(false);
-  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto", vision: "auto", ratios: ["9:16"] as Ratio[] });
+  const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto", ratios: ["9:16"] as Ratio[] });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
 
@@ -204,9 +198,6 @@ export function NewProject() {
         </Field>
         <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
-        </Field>
-        <Field label="Scene vision" hint="Describes what happens in each shot (the play, the product, who's on screen) so Jev and your agent can pick and mix scenes. Auto uses a vision model in LM Studio on this computer if one is there. OpenRouter sends one small frame per shot and costs a little per video. Off still saves frames and contact sheets for your agent.">
-          <Select options={VISION} value={s.vision} onChange={(e) => setS({ ...s, vision: e.target.value })} />
         </Field>
       </Group>
 

@@ -1,11 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import type { ClipCandidate } from "../discovery/segment.ts";
 import { mapLimit } from "../jev/evaluator.ts";
 import { thumbnail } from "../media/ffmpeg.ts";
-import type { ChatPart, OneClient } from "../one/client.ts";
-import { runProcess } from "../proc.ts";
+import { redact, runProcess } from "../proc.ts";
 
 /** One stretch of picture between cuts (long shots are split so each part gets a look). */
 export interface Shot {
@@ -26,7 +27,7 @@ export interface Scene extends Shot {
 }
 
 export interface SceneFile {
-  /** The vision model that wrote the descriptions, or null when none ran (the agent describes them). */
+  /** The agent that wrote the descriptions, or null when none ran (the user's agent describes them). */
   describedBy: string | null;
   note: string;
   /** Contact sheets: 4×4 grids of the frames, left to right, top to bottom. */
@@ -120,119 +121,60 @@ export function parseReply(text: string, n: number) {
   });
 }
 
-function parts(frames: { path: string; at: number }[], context: string): ChatPart[] {
-  return [
-    { type: "text", text: `${context}\n${frames.length} frame(s), at ${frames.map((f, i) => `${i + 1}: ${clock(f.at)}`).join(", ")}.` },
-    ...frames.map((f) => ({ type: "image_url" as const, image_url: { url: `data:image/jpeg;base64,${readFileSync(f.path).toString("base64")}` } })),
-  ];
-}
+/** The reply as a JSON schema, so Claude Code returns it as structured output. */
+const REPLY_JSON_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    frames: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { i: { type: "integer" }, description: { type: "string" }, action: { type: "string" }, tags: { type: "array", items: { type: "string" } } },
+        required: ["i", "description"],
+      },
+    },
+  },
+  required: ["frames"],
+});
 
-/** A vision model in LM Studio (or any OpenAI-compatible local server). Free and private: nothing leaves the machine. */
-export class LocalVisionDescriber implements SceneDescriber {
-  readonly batch = 2;
+/**
+ * The user's own agent (Claude Code, the one they run OneClip with) looks at the frames: no extra model,
+ * key or server. Runs in print mode with only the Read tool, in a temp folder that holds nothing but the
+ * batch's frames, with no MCP servers and no session saved.
+ */
+export class ClaudeCodeVisionDescriber implements SceneDescriber {
+  readonly name = "Claude Code";
+  readonly batch = 8;
   constructor(
-    private readonly baseUrl: string,
-    readonly model: string,
+    private readonly bin: string,
+    private readonly opts: { timeoutMs?: number } = {},
   ) {}
-  get name() {
-    return `${this.model} (local)`;
-  }
 
-  /** The model to use: the one set in env, else a vision model LM Studio has (loaded ones first). */
-  static async find(baseUrl: string, model?: string): Promise<LocalVisionDescriber | undefined> {
-    if (model) return new LocalVisionDescriber(baseUrl, model);
+  async available() {
     try {
-      const r = await fetch(`${new URL(baseUrl).origin}/api/v0/models`, { signal: AbortSignal.timeout(3000) });
-      if (!r.ok) return undefined;
-      const j = (await r.json()) as { data?: { id: string; type?: string; state?: string }[] };
-      const vlm = (j.data ?? []).filter((m) => m.type === "vlm").sort((a, b) => Number(b.state === "loaded") - Number(a.state === "loaded"))[0];
-      return vlm ? new LocalVisionDescriber(baseUrl, vlm.id) : undefined;
+      return (await runProcess(this.bin, ["--version"], { timeoutMs: 20_000 })).code === 0;
     } catch {
-      return undefined;
+      return false;
     }
   }
 
   async describe(frames: { path: string; at: number }[], context: string): ReturnType<SceneDescriber["describe"]> {
-    // A dead server or a timeout fails once; only a garbled reply is worth asking again.
-    const reply = await this.ask(frames, context);
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-scenes-"));
     try {
-      return parseReply(reply, frames.length);
-    } catch (e) {
-      // One garbled batch reply shouldn't lose every frame in it: ask frame by frame.
-      if (frames.length === 1) throw e;
-      const out = [];
-      for (const f of frames) out.push(...parseReply(await this.ask([f], context), 1));
-      return out;
+      await Promise.all(frames.map((f, i) => copyFile(f.path, join(cwd, `${i + 1}.jpg`))));
+      const list = frames.map((f, i) => `${i + 1}.jpg (at ${clock(f.at)})`).join(", ");
+      const prompt = `${context}
+Read these ${frames.length} image file(s) in this folder, in order, and describe each one: ${list}.`;
+      const args = ["-p", "--output-format", "json", "--json-schema", REPLY_JSON_SCHEMA, "--tools", "Read", "--allowedTools", "Read", "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--system-prompt", SYSTEM];
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 5 * 60_000, input: prompt, cwd });
+      if (r.code !== 0) throw new Error(`Claude Code exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-300))}`);
+      const a = r.stdout.indexOf("{");
+      const out = JSON.parse(r.stdout.slice(a, r.stdout.lastIndexOf("}") + 1)) as { structured_output?: unknown; result?: string; is_error?: boolean };
+      if (out.is_error) throw new Error(`Claude Code error: ${redact(String(out.result).slice(0, 300))}`);
+      return parseReply(out.structured_output ? JSON.stringify(out.structured_output) : (out.result ?? ""), frames.length);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
     }
-  }
-
-  private async ask(frames: { path: string; at: number }[], context: string) {
-    const r = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model: this.model,
-        temperature: 0.2,
-        max_tokens: 200 + 400 * frames.length,
-        // Thinking models (Qwen 3.x) otherwise spend the budget reasoning and cut the JSON off.
-        // Servers that don't know these fields ignore them.
-        chat_template_kwargs: { enable_thinking: false },
-        reasoning_effort: "none",
-        messages: [
-          { role: "system", content: `${SYSTEM} /no_think` },
-          { role: "user", content: parts(frames, context) },
-        ],
-      }),
-      signal: AbortSignal.timeout(5 * 60_000),
-    });
-    if (!r.ok) throw new Error(`local vision model: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
-    const j = (await r.json()) as { choices?: { message?: { content?: string } }[] };
-    return j.choices?.[0]?.message?.content ?? "";
-  }
-}
-
-/** Frames above this go out smaller: base64 adds a third, and the One CLI's command line holds 30,000 chars with the prompt. */
-export const MAX_FRAME_BYTES = 18_000;
-
-/** The frame, or a smaller copy of it (in `frames-small/`) that fits `MAX_FRAME_BYTES`. */
-export async function fitFrame(ffmpeg: string, path: string, max = MAX_FRAME_BYTES): Promise<string> {
-  if (statSync(path).size <= max) return path;
-  const dir = join(dirname(dirname(path)), "frames-small");
-  mkdirSync(dir, { recursive: true });
-  for (const [w, q] of [[384, 8], [320, 12], [256, 16], [192, 20]] as const) {
-    const out = join(dir, basename(path));
-    const r = await runProcess(ffmpeg, ["-y", "-v", "error", "-i", path, "-vf", `scale=${w}:-2`, "-q:v", String(q), out], { timeoutMs: 60_000 });
-    if (r.code !== 0) throw new Error(`shrinking a frame failed: ${r.stderr.trim().slice(-300)}`);
-    if (statSync(out).size <= max) return out;
-  }
-  throw new Error(`frame ${basename(path)} is still over ${max} bytes at 192 px`);
-}
-
-/** A vision model through the user's OpenRouter connection in One. Paid per frame, so opt-in only. */
-export class OpenRouterVisionDescriber implements SceneDescriber {
-  // One frame per request keeps the body under the One CLI's command-line limit.
-  readonly batch = 1;
-  readonly name: string;
-  constructor(
-    private readonly one: Pick<OneClient, "openRouterChat">,
-    private readonly models: string[],
-    private readonly ffmpeg = "ffmpeg",
-  ) {
-    this.name = `${models[0]} (OpenRouter)`;
-  }
-  async describe(frames: { path: string; at: number }[], context: string) {
-    const small = await Promise.all(frames.map(async (f) => ({ ...f, path: await fitFrame(this.ffmpeg, f.path) })));
-    const r = await this.one.openRouterChat({
-      models: this.models,
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: parts(small, context) },
-      ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 300 * frames.length,
-      temperature: 0.2,
-    });
-    return parseReply(r.content, frames.length);
   }
 }
 
@@ -295,7 +237,7 @@ export async function buildScenes(o: SceneOptions): Promise<SceneFile> {
     return save(o.dir, file);
   }
   if (!o.describer) {
-    file.note = "No vision model ran. Look at the contact sheets (sheets/*.jpg, 4×4, left to right, top to bottom; each sheet lists its scene numbers) or the frames, and describe the scenes yourself.";
+    file.note = "Nobody described the scenes yet (Claude Code was not found, or scene descriptions are off). Look at the contact sheets (sheets/*.jpg, 4×4, left to right, top to bottom; each sheet lists its scene numbers) or the frames, and describe the scenes yourself.";
     return save(o.dir, file);
   }
   const d = o.describer;
@@ -355,17 +297,11 @@ export function withScenes(c: ClipCandidate, scenes: Scene[]): ClipCandidate {
   return { ...c, onScreen: text };
 }
 
-export type VisionChoice = "auto" | "local" | "openrouter" | "off";
+export type VisionChoice = "agent" | "off";
 
-/**
- * auto: a local vision model when LM Studio has one, else none (the agent looks).
- * local: the local server only. openrouter: the user's OpenRouter connection (paid).
- */
-export async function pickDescriber(
-  choice: VisionChoice,
-  o: { localUrl: string; localModel?: string; openrouterModels: string[]; one: () => Pick<OneClient, "openRouterChat">; ffmpeg?: string },
-): Promise<SceneDescriber | undefined> {
+/** agent: the user's Claude Code describes the shots when it is installed; otherwise (or off) nobody does and the frames and contact sheets wait for the user's agent. */
+export async function pickDescriber(choice: VisionChoice, o: { claudeBin: string }): Promise<SceneDescriber | undefined> {
   if (choice === "off") return undefined;
-  if (choice === "openrouter") return new OpenRouterVisionDescriber(o.one(), o.openrouterModels, o.ffmpeg);
-  return LocalVisionDescriber.find(o.localUrl, o.localModel);
+  const claude = new ClaudeCodeVisionDescriber(o.claudeBin);
+  return (await claude.available()) ? claude : undefined;
 }
