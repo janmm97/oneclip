@@ -190,9 +190,11 @@ The skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md) 
 
 The skill in [`skills/oneclip-hooks/SKILL.md`](skills/oneclip-hooks/SKILL.md) teaches it to clip for views: which moments to pick, how to open on the hook in the first 1–3 seconds, the on-screen text hook, length per platform and hook variants to test. It comes with a local scanner that ranks the hook lines in a transcript (`node skills/oneclip-hooks/scripts/find-hooks.mjs .oneclip/projects/<id>`).
 
+The skill in [`skills/oneclip-clipping/SKILL.md`](skills/oneclip-clipping/SKILL.md) is the professional clipper's playbook, distilled from 46 sources: which scenes to use and which to reject, clip arc and length per genre, pacing, silences, J/L cuts, reframing to 9:16, safe zones, captions, loudness, loops, originality and copyright rules per platform, and posting. Every rule is mapped to a OneClip plan field. The full research with sources is in [`references/research.md`](skills/oneclip-clipping/references/research.md).
+
 ## Agent skills
 
-Clone OneClip and your agent gets the `oneclip-editor` and `oneclip-hooks` skills plus 17 motion-graphics repos (the list in [Claude motion graphics repos 2026](https://trinhstudio.com/inside/claude-motion-graphics-repos-2026)) for captions, titles and animation. OneClip installs every skill those repos ship into `.claude/skills/` and `.agents/skills/`:
+Clone OneClip and your agent gets the `oneclip-editor`, `oneclip-hooks` and `oneclip-clipping` skills plus 17 motion-graphics repos (the list in [Claude motion graphics repos 2026](https://trinhstudio.com/inside/claude-motion-graphics-repos-2026)) for captions, titles and animation. OneClip installs every skill those repos ship into `.claude/skills/` and `.agents/skills/`:
 
 - **Claude Code** does it on the first session in the OneClip folder (a `SessionStart` hook in `.claude/settings.json`; Claude Code asks you to trust the folder first). If the skills don't show up in that first session, start a new one.
 - **Codex, OpenCode, Cursor and other agents**: [`AGENTS.md`](AGENTS.md) tells them to run `pnpm skills`. `pnpm run setup` runs it too.
