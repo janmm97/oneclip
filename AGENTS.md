@@ -7,6 +7,7 @@ OneClip is a local AI video clipper (TypeScript, pnpm workspace). Start with `RE
 This repo gives your agent a set of skills:
 
 - **`oneclip-editor`** (`skills/oneclip-editor/SKILL.md`): how to edit and remix clips with OneClip. Read it before any editing task.
+- **`oneclip-hooks`** (`skills/oneclip-hooks/SKILL.md`): how to find the moments worth clipping and open each clip on a hook that stops the scroll (hook types, per-genre and per-platform rules, a local hook scanner, variants). Use it before `oneclip-editor` when picking or judging clips.
 - **Motion-graphics skills** (HyperFrames, Remotion, LottieFiles motion design, animate, claude-motion and the others in `skills/motion-skills.json`): for captions, titles, animation and motion design.
 
 They are installed into `.claude/skills/` and `.agents/skills/` (both git-ignored):
