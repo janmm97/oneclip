@@ -188,9 +188,11 @@ Measured: `qwen/qwen3.5-4b` in LM Studio described 8 shots of a 89 s gameplay vi
 
 The skill in [`skills/oneclip-editor/SKILL.md`](skills/oneclip-editor/SKILL.md) teaches your agent pro editing (hooks, cutting on action, J-cuts, replays, reactions, music beds) and **scene mixing**, meaning shots in any order with sound from another moment. The agent then renders with `pnpm run edit`.
 
+The skill in [`skills/oneclip-hooks/SKILL.md`](skills/oneclip-hooks/SKILL.md) teaches it to clip for views: which moments to pick, how to open on the hook in the first 1–3 seconds, the on-screen text hook, length per platform and hook variants to test. It comes with a local scanner that ranks the hook lines in a transcript (`node skills/oneclip-hooks/scripts/find-hooks.mjs .oneclip/projects/<id>`).
+
 ## Agent skills
 
-Clone OneClip and your agent gets the `oneclip-editor` skill plus 17 motion-graphics repos (the list in [Claude motion graphics repos 2026](https://trinhstudio.com/inside/claude-motion-graphics-repos-2026)) for captions, titles and animation. OneClip installs every skill those repos ship into `.claude/skills/` and `.agents/skills/`:
+Clone OneClip and your agent gets the `oneclip-editor` and `oneclip-hooks` skills plus 17 motion-graphics repos (the list in [Claude motion graphics repos 2026](https://trinhstudio.com/inside/claude-motion-graphics-repos-2026)) for captions, titles and animation. OneClip installs every skill those repos ship into `.claude/skills/` and `.agents/skills/`:
 
 - **Claude Code** does it on the first session in the OneClip folder (a `SessionStart` hook in `.claude/settings.json`; Claude Code asks you to trust the folder first). If the skills don't show up in that first session, start a new one.
 - **Codex, OpenCode, Cursor and other agents**: [`AGENTS.md`](AGENTS.md) tells them to run `pnpm skills`. `pnpm run setup` runs it too.
