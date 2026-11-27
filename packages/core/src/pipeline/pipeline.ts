@@ -467,7 +467,15 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
     let path = outPath;
     for (let pass = 1; ; pass++) {
       await updateJob(db, job.id, { stage: "render", progress: 0.98, message: `Quality check ${pass}/${QA_PASSES}: reviewing the finished clip frame by frame` });
-      const r = await reviewRender({ ffmpeg: cfg.ffmpeg, path, plan: current, workDir: join(workDir, `qa-${pass}`), modelsDir: vision.modelsDir, targetLufs: current.audio.targetLufs, reviewer });
+      // The check must never lose a finished render: FFmpeg missing or timing out here keeps the file and says so.
+      const r = await reviewRender({ ffmpeg: cfg.ffmpeg, path, plan: current, workDir: join(workDir, `qa-${pass}`), modelsDir: vision.modelsDir, targetLufs: current.audio.targetLufs, reviewer }).catch(
+        (e: Error): Awaited<ReturnType<typeof reviewRender>> => ({
+          verdict: "checks-only",
+          reviewer: "checks",
+          frames: 0,
+          issues: [{ at: 0, kind: "other", severity: "minor", detail: `The quality check couldn't run: ${redact(e.message).slice(0, 160)}`, fix: "none", by: "checks" }],
+        }),
+      );
       const fix = pass < QA_PASSES ? fixPlan(current, r.issues, moved) : { plan: current, changes: [] };
       const report = (): QaReport => ({ ...r, verdict: r.verdict === "pass" && fixed.length ? "fixed" : r.verdict, passes: pass, fixed });
       if (!fix.changes.length) {
