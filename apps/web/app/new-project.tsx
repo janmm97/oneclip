@@ -10,15 +10,15 @@ import { api, cn } from "@/lib/utils";
 import { PlacesPicker } from "./places-picker";
 
 /** Plain names for the length presets; the seconds stay as a small second line so four segments fit a phone. */
-const LENGTH_NAMES: Record<string, string> = { quick: "Super short", short: "Short", standard: "Medium", extended: "Long" };
+const LENGTH_NAMES: Record<string, string> = { quick: "Very short", short: "Short", standard: "Medium", extended: "Long" };
 const PRESETS = Object.entries(DURATION_PRESETS).map(([k, v]) => {
   const range = v.label.match(/\((.+)\)/)?.[1];
   const name = LENGTH_NAMES[k] ?? v.label;
   return [
     k,
-    <span key={k} className="grid py-1 leading-tight">
+    <span key={k} className="grid py-1 leading-tight whitespace-nowrap">
       {name}
-      {range ? <span className="num text-[0.6875rem] font-normal text-muted">{range}</span> : null}
+      {range ? <span className="num text-xs font-normal text-muted">{range}</span> : null}
     </span>,
   ] as const;
 });
@@ -128,9 +128,9 @@ export function NewProject() {
               setMeta(undefined);
             }}
             onBlur={lookup}
-            placeholder="https://youtu.be/…  or  C:\Videos\episode-12.mp4"
+            placeholder="Paste a video link"
             spellCheck={false}
-            className="font-mono"
+            className="font-mono placeholder:font-sans"
           />
           <Button type="button" onClick={lookup} loading={busy === "meta"} disabled={!extractYouTubeId(clean)} aria-label="Preview video">
             <Link2 aria-hidden />
@@ -212,7 +212,7 @@ export function NewProject() {
           <Field label="What kind of video is it?" hint="Helps Jev, OneClip's clip judge, spot the best part: the chorus of a song, the end of a story, the big play in a game.">
             <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
           </Field>
-          <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, then OpenCode, then the basic one. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
+          <Field label="AI helper" hint="Automatic picks the best AI helper it can find. Your clip's words go to that AI (and to Jev). Pick Basic to keep this step on this computer.">
             <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
           </Field>
           <Row label="Caption style">

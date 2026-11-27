@@ -107,7 +107,7 @@ export function Segmented<T extends string>({ value, onChange, options, label }:
         <label
           key={v}
           className={cn(
-            "press grid min-h-8 cursor-pointer place-items-center rounded-[0.6rem] px-2 text-center text-[0.8125rem] font-medium has-focus-visible:outline-2 has-focus-visible:outline-tally",
+            "press grid min-h-8 cursor-pointer place-items-center rounded-[0.6rem] px-1 text-center text-[0.8125rem] font-medium has-focus-visible:outline-2 has-focus-visible:outline-tally",
             v === value ? "bg-panel-strong text-fg shadow-[0_1px_3px_rgb(0_0_0/0.25)]" : "text-muted hover:text-fg",
           )}
         >

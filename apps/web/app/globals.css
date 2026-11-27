@@ -31,6 +31,9 @@
   --color-bad: #ff453a;
   --color-info: #0a84ff;
 
+  /* Small print (hints, sub-labels, versions) never drops under 13 px, even on a phone. */
+  --text-xs: max(13px, 0.75rem);
+
   --radius-sm: 0.625rem;
   --radius-md: 0.875rem;
   --radius-lg: 1.25rem;
