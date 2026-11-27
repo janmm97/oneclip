@@ -17,7 +17,8 @@ function extraDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] 
 /** The JS file an npm/pnpm `.cmd` shim runs (`"%dp0%\node_modules\…\cli.js"`), so it can be started with Node and no shell. */
 export function shimTarget(shim: string, text: string): string | undefined {
   const m = /"%(?:~)?dp0%?\\?([^"%]+\.(?:c|m)?js)"/i.exec(text);
-  return m ? join(dirname(shim), m[1]!) : undefined;
+  // Shims always write `\`; split on it so the path is right on any OS.
+  return m ? join(dirname(shim), ...m[1]!.split("\\")) : undefined;
 }
 
 const resolved = new Map<string, { cmd: string; pre: string[] }>(); // hits only: a CLI installed later is found without a restart
