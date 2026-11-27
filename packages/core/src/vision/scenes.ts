@@ -157,13 +157,13 @@ export function resultMessage(stdout: string): { structured_output?: unknown; re
 }
 
 /** One stream-json user message: the context, then each frame as an inline JPEG with its number and time. */
-export function visionMessage(frames: { data: string; at: number }[], context: string): string {
+export function visionMessage(frames: { data: string; at: number }[], context: string, ask?: string): string {
   const content: unknown[] = [{ type: "text", text: context }];
   frames.forEach((f, i) => {
     content.push({ type: "text", text: `Image ${i + 1} (at ${clock(f.at)}):` });
     content.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: f.data } });
   });
-  content.push({ type: "text", text: `Describe these ${frames.length} image(s) in order, i = 1 to ${frames.length}.` });
+  content.push({ type: "text", text: ask ?? `Describe these ${frames.length} image(s) in order, i = 1 to ${frames.length}.` });
   return `${JSON.stringify({ type: "user", message: { role: "user", content } })}\n`;
 }
 
