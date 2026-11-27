@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", label: "New clip", icon: Plus, match: (p: string) => p === "/" || p.startsWith("/projects") },
-  { href: "/setup", label: "Setup", icon: Stethoscope, match: (p: string) => p.startsWith("/setup") },
+  { href: "/setup", label: "Check my computer", icon: Stethoscope, match: (p: string) => p.startsWith("/setup") },
 ] as const;
 
 function useTheme() {
@@ -78,7 +78,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="mt-auto grid gap-3">
-          <p className="hidden px-2 text-xs leading-relaxed text-muted xl:block">Runs on this machine. Only clip text leaves it (Jev, AI planner).</p>
+          <p className="hidden px-2 text-xs leading-relaxed text-muted xl:block">Your videos stay on this computer. Only the words go to the AI.</p>
           <div className="flex items-center justify-center gap-3 rounded-md bg-raised p-2 xl:justify-between xl:px-3">
             <span className="hidden items-center gap-2 whitespace-nowrap text-sm xl:flex">
               <Moon className="size-4 text-muted" aria-hidden />

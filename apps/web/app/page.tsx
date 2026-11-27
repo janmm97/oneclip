@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Green ready, red failed, grey queued; anything else is a running step, shown blue. */
 const TONE = { ready: "good", failed: "bad", queued: "neutral" } as const;
+const STATUS: Record<string, string> = { ready: "Ready", failed: "Didn't work", queued: "Waiting" };
 
 export default async function Home() {
   const projects = await app().db.select().from(schema.projects).orderBy(desc(schema.projects.createdAt)).limit(20).all();
@@ -20,15 +21,14 @@ export default async function Home() {
           Find the clips worth posting
         </h1>
         <p className="mt-3 max-w-[62ch] text-[clamp(0.95rem,0.85rem+0.3vw,1.15rem)] text-muted">
-          Point OneClip at a video you own. It transcribes it locally, asks Jev to score every complete thought for hook strength, clarity and payoff,
-          then renders the best ones as 1080p clips in the frame ratios you pick (9:16, 1:1, 4:5, 16:9, 4:3).
+          Paste a video link. OneClip finds the best moments and turns them into short clips for TikTok, Reels and Shorts, right on your computer.
         </p>
         <NewProject />
       </section>
       <aside aria-labelledby="recent" className="lg:sticky lg:top-6 lg:self-start">
         <div className="glass rounded-xl p-2">
           <h2 id="recent" className="px-3 pt-2 pb-1 text-xs font-semibold tracking-wide text-muted uppercase">
-            Recent projects
+            Your projects
           </h2>
           {projects.length ? (
             <ul className="grid gap-0.5">
@@ -39,7 +39,7 @@ export default async function Home() {
                       <span className="block truncate text-sm font-medium">{p.title}</span>
                       <span className="num text-xs text-muted">{new Date(p.createdAt).toLocaleString()}</span>
                     </span>
-                    <Badge tone={TONE[p.status as keyof typeof TONE] ?? "info"}>{p.status}</Badge>
+                    <Badge tone={TONE[p.status as keyof typeof TONE] ?? "info"}>{STATUS[p.status] ?? "Working…"}</Badge>
                     <ChevronRight className="size-4 text-muted" aria-hidden />
                   </Link>
                 </li>
