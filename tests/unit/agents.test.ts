@@ -14,8 +14,12 @@ describe("shimTarget", () => {
   it("finds the script an npm .cmd shim runs", () => {
     expect(shimTarget(join(dir, "codex.cmd"), NPM_SHIM)).toBe(join(dir, "node_modules", "@openai", "codex", "bin", "codex.js"));
   });
-  it("returns nothing for a shim that runs an exe", () => {
-    expect(shimTarget(join(dir, "x.cmd"), `"%dp0%\\x.exe" %*`)).toBeUndefined();
+  it("finds a native .exe an npm shim runs (newer Claude Code), not the local-node check before it", () => {
+    const shim = `IF EXIST "%dp0%\\node.exe" (\r\n  SET "_prog=%dp0%\\node.exe"\r\n)\r\n"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe"   %*\r\n`;
+    expect(shimTarget(join(dir, "claude.cmd"), shim)).toBe(join(dir, "node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe"));
+  });
+  it("returns nothing for a shim with no target", () => {
+    expect(shimTarget(join(dir, "x.cmd"), "@echo off")).toBeUndefined();
   });
 });
 
