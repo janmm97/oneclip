@@ -1,8 +1,8 @@
 "use client";
 
-import { CircleAlert, CircleCheck, CircleX, RefreshCw, Zap } from "lucide-react";
+import { Check as CheckIcon, CircleAlert, CircleCheck, CircleX, Copy, RefreshCw, Zap } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Notice } from "@/components/ui";
+import { Button, Notice } from "@/components/ui";
 import { api, cn } from "@/lib/utils";
 
 interface Check {
@@ -12,6 +12,7 @@ interface Check {
   required: boolean;
   detail: string;
   fix?: string;
+  help?: { why: string; command?: string; done: string };
 }
 
 export default function Setup() {
@@ -33,54 +34,43 @@ export default function Setup() {
 
   useEffect(() => void run(false), [run]);
 
-  const blocking = checks?.filter((c) => c.required && !c.ok).length ?? 0;
+  const must = checks?.filter((c) => c.required && !c.ok) ?? [];
+  const nice = checks?.filter((c) => !c.required && !c.ok) ?? [];
+  const good = checks?.filter((c) => c.ok) ?? [];
 
   return (
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[clamp(1.9rem,1rem+2vw,3.25rem)] leading-tight font-bold tracking-[-0.03em]">Check my computer</h1>
-          <p className="mt-1 text-sm text-muted">
-            We check that everything OneClip needs is installed. Fix anything red, then make clips.
-          </p>
+          <p className="mt-1 text-sm text-muted">We check that everything OneClip needs is installed. Fix the Must fix list, then make clips.</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => run(false)} loading={busy === "get"} disabled={!!busy}>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => run(false)} loading={busy === "get"} disabled={!!busy} className="min-h-[44px]">
             <RefreshCw aria-hidden />
             Check again
           </Button>
-          <Button onClick={() => run(true)} loading={busy === "jev"} disabled={!!busy}>
+          <Button onClick={() => run(true)} loading={busy === "jev"} disabled={!!busy} className="min-h-[44px]">
             <Zap aria-hidden />
             Test the clip judge (uses a tiny bit of credit)
           </Button>
         </div>
       </div>
 
-      {error ? <div className="mt-6"><Notice>{error}</Notice></div> : null}
+      {error ? (
+        <div className="mt-6">
+          <Notice>{error}</Notice>
+        </div>
+      ) : null}
 
       {checks ? (
         <>
-          <p className={cn("mt-6 text-sm font-medium", blocking ? "text-bad" : "text-good")}>
-            {blocking ? `${blocking} ${blocking === 1 ? "thing" : "things"} to fix before you can make clips` : "All set: go make clips!"}
+          <p role="status" className={cn("mt-6 text-sm font-medium", must.length ? "text-bad" : "text-good")}>
+            {must.length ? `${must.length} ${must.length === 1 ? "thing" : "things"} to fix before you can make clips` : "All set: go make clips!"}
           </p>
-          <ul className="mt-3 divide-y divide-line glass rounded-xl">
-            {checks.map((c) => {
-              const Icon = c.ok ? CircleCheck : c.required ? CircleX : CircleAlert;
-              return (
-                <li key={c.id} className="flex gap-3 px-4 py-3">
-                  <Icon className={cn("mt-0.5 size-4 shrink-0", c.ok ? "text-good" : c.required ? "text-bad" : "text-warn")} aria-label={c.ok ? "passes" : "fails"} />
-                  <div className="min-w-0 flex-1 text-sm">
-                    <p className="flex items-center gap-2 font-medium">
-                      {c.label}
-                      {!c.required ? <Badge>Nice to have</Badge> : null}
-                    </p>
-                    <p className="mt-0.5 break-words text-muted">{c.detail}</p>
-                    {!c.ok && c.fix ? <p className="mt-1 font-mono text-xs text-fg">{c.fix}</p> : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          <Section title="Must fix" items={must} tone="bad" />
+          <Section title="Nice to have" items={nice} tone="warn" />
+          <Section title="All good" items={good} tone="good" />
         </>
       ) : !error ? (
         <ul className="glass mt-6 grid gap-px overflow-hidden rounded-xl" aria-label="Running checks">
@@ -89,6 +79,57 @@ export default function Setup() {
           ))}
         </ul>
       ) : null}
+    </div>
+  );
+}
+
+function Section({ title, items, tone }: { title: string; items: Check[]; tone: "bad" | "warn" | "good" }) {
+  if (!items.length) return null;
+  const Icon = tone === "good" ? CircleCheck : tone === "bad" ? CircleX : CircleAlert;
+  return (
+    <section className="mt-6">
+      <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">
+        {title} ({items.length})
+      </h2>
+      <ul className="mt-2 divide-y divide-line glass rounded-xl">
+        {items.map((c) => (
+          <li key={c.id} className="flex gap-3 px-4 py-3">
+            <Icon className={cn("mt-0.5 size-4 shrink-0", { bad: "text-bad", warn: "text-warn", good: "text-good" }[tone])} aria-hidden />
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="font-medium">{c.label}</p>
+              {tone !== "good" && c.help ? <p className="mt-0.5">{c.help.why}</p> : null}
+              <p className="mt-0.5 break-words text-xs text-muted">{c.detail}</p>
+              {tone !== "good" ? <Fix c={c} /> : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Fix({ c }: { c: Check }) {
+  const [copied, setCopied] = useState(false);
+  const command = c.help?.command;
+  if (!command) return c.fix ? <p className="mt-2 text-xs">{c.fix}</p> : null;
+  return (
+    <div className="mt-2 grid gap-1.5">
+      <div className="flex items-center gap-2">
+        <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-raised px-3 py-2.5 font-mono text-xs whitespace-nowrap">{command}</code>
+        <Button
+          className="min-h-[44px] shrink-0"
+          aria-label={`Copy the command for ${c.label}`}
+          onClick={async () => {
+            await navigator.clipboard.writeText(command);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+        >
+          {copied ? <CheckIcon aria-hidden /> : <Copy aria-hidden />}
+          <span aria-live="polite">{copied ? "Copied" : "Copy"}</span>
+        </Button>
+      </div>
+      <p className="text-xs text-muted">Run it in a terminal. When it works: {c.help?.done}</p>
     </div>
   );
 }
