@@ -200,6 +200,29 @@ Help the user with these when they ask; OneClip renders, it doesn't post.
 10. Originality: if the footage isn't the user's, the clip adds commentary, narration or a storyline, and the user knows the rights question.
 11. Rendered in every shape the user posts to; previewed, then the final render.
 
+### What's wrong with this render? (check every preview, ~2 minutes)
+
+Make two contact sheets and look at them, don't trust the plan:
+
+```sh
+# One frame every 2 s of the render, 6 per row
+ffmpeg -v error -i clip.mp4 -vf "fps=1/2,scale=216:-2,tile=6x4" -frames:v 1 sheet.png
+# Real shot changes of the source range (cuts between similar podcast angles score 0.2–0.3)
+ffmpeg -hide_banner -ss START -t LEN -i source.mp4 -an -vf "scale=160:-2,select='gt(scene,0.1)',metadata=print" -f null - 2>&1 | grep scene_score
+```
+
+Reject and fix when any of these is true:
+
+| Fault | What it looks like | Fix |
+|---|---|---|
+| Same person twice | Both halves of a split show one face | Split the cut at the shot change; `frame: { mode: "crop", x }` on the close-up |
+| Face cut off | A face touches the left/right edge of a crop or half | Move `x`, or lower `zoom` on the split |
+| Reframe mid-shot | The picture jumps while the camera didn't cut | Make the cut boundary match the shot change exactly |
+| Tiny faces / logo wins | Wide shot split or fitted, faces under ~10 % of the height | Crop on the speaker, or skip the wide shot |
+| Ends on a new topic | The last seconds hold a new question or "so, next…" | End one beat after the payoff line |
+| Cold open without context | The first line refers to something the viewer never saw | Start earlier, or add on-screen context |
+| Dead air / black / freeze | Same frame for >1 s, black frames | Trim it |
+
 ## 11. Rules
 
 - Don't invent numbers: when you quote a benchmark, quote it as a range from `references/research.md` and say if it's vendor data.

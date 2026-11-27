@@ -14,8 +14,12 @@ export function parseShowinfo(stderr: string, offset: number): number[] {
   return [...stderr.matchAll(/pts_time:\s*([\d.]+)/g)].map((m) => Math.round((offset + Number(m[1])) * 1000) / 1000);
 }
 
-/** Hard cuts inside [start, end] of the source, found on a small copy of the picture. */
-export async function shotChanges(ffmpeg: string, sourcePath: string, start: number, end: number, threshold = 0.3): Promise<number[]> {
+/**
+ * Hard cuts inside [start, end] of the source, found on a small copy of the picture.
+ * 0.15, not FFmpeg's usual 0.3: on a 160 px copy, cuts between similar podcast angles
+ * score 0.24–0.29 while a talking shot stays under 0.08.
+ */
+export async function shotChanges(ffmpeg: string, sourcePath: string, start: number, end: number, threshold = 0.15): Promise<number[]> {
   const r = await runProcess(
     ffmpeg,
     ["-hide_banner", "-nostats", "-ss", start.toFixed(3), "-t", (end - start).toFixed(3), "-i", sourcePath, "-an", "-vf", `scale=160:-2,select='gt(scene,${threshold})',showinfo`, "-f", "null", "-"],
@@ -45,22 +49,29 @@ export function splitAtShots(cuts: Cut[], changes: number[], minPiece = 0.5, max
  * - the people fit in one crop: `crop` centred on them;
  * - two people too far apart for one crop: `split`, one on top, one below (a reaction stays in view);
  * - a spread-out group: `fit`.
+ * A split needs two people in every sample: if the samples disagree, the piece holds a shot
+ * change the detector missed, and a split would show the same person twice.
  */
 export function chooseFrame(samples: FaceBox[][], src: Size, out: Size): Frame {
-  const all = samples.flat();
-  const tallest = Math.max(0, ...all.map((f) => f.y1 - f.y0));
+  const tallest = Math.max(0, ...samples.flat().map((f) => f.y1 - f.y0));
   if (tallest < 0.07) return { mode: "fit" };
-  const people = samples
-    .map((s) => s.filter((f) => f.y1 - f.y0 >= tallest * 0.45).sort((a, b) => a.x0 - b.x0))
-    .reduce((best, s) => (s.length > best.length ? s : best), [] as FaceBox[]);
+  const seen = samples.map((s) => s.filter((f) => f.y1 - f.y0 >= tallest * 0.45).sort((a, b) => a.x0 - b.x0)).filter((s) => s.length);
+  const people = seen.flat();
   const x0 = Math.min(...people.map((f) => f.x0));
   const x1 = Math.max(...people.map((f) => f.x1));
   if (x1 - x0 <= visibleWidth(src, out) * 0.85) return cropAt((x0 + x1) / 2, src, out);
-  if (people.length === 2) {
-    const c = (f: FaceBox) => ({ x: (f.x0 + f.x1) / 2, y: (f.y0 + f.y1) / 2 });
-    return splitAt(c(people[0] as FaceBox), c(people[1] as FaceBox), src, out);
+  if (seen.length === samples.length && seen.every((s) => s.length === 2)) {
+    const mid = (i: 0 | 1, k: "x" | "y") => seen.reduce((t, s) => t + (k === "x" ? s[i]!.x0 + s[i]!.x1 : s[i]!.y0 + s[i]!.y1) / 2, 0) / seen.length;
+    return splitAt({ x: mid(0, "x"), y: mid(0, "y") }, { x: mid(1, "x"), y: mid(1, "y") }, src, out);
   }
   return { mode: "fit" };
+}
+
+/** True when the face samples of a piece disagree on how many people are in it (a likely missed shot change). */
+export function samplesDisagree(samples: FaceBox[][]): boolean {
+  const tallest = Math.max(0, ...samples.flat().map((f) => f.y1 - f.y0));
+  const counts = samples.map((s) => s.filter((f) => f.y1 - f.y0 >= tallest * 0.45).length);
+  return tallest >= 0.07 && new Set(counts).size > 1;
 }
 
 /** Merged source ranges the cuts read, so shot detection runs once per stretch, not once per cut. */
@@ -90,13 +101,23 @@ export async function smartReframe(
   try {
     const changes: number[] = [];
     for (const s of stretches(plan.cuts)) changes.push(...(await shotChanges(o.ffmpeg, o.sourcePath, s.start, s.end)));
-    const cuts = splitAtShots(plan.cuts, changes.sort((a, b) => a - b));
+    const sample = async (c: Cut) => {
+      const out: FaceBox[][] = [];
+      for (const f of [0.2, 0.5, 0.8]) out.push(await facesAt(o.ffmpeg, o.sourcePath, c.start + (c.end - c.start) * f, src, o.workDir, o.modelsDir));
+      return out;
+    };
+    const pieces: { c: Cut; samples: FaceBox[][] }[] = [];
+    for (const c of splitAtShots(plan.cuts, changes.sort((a, b) => a - b))) {
+      const samples = await sample(c);
+      // Faces disagree: look again for a softer cut inside this piece before framing it.
+      const more = !c.frame && samplesDisagree(samples) ? await shotChanges(o.ffmpeg, o.sourcePath, c.start, c.end, 0.1) : [];
+      const parts = more.length ? splitAtShots([c], more) : [c];
+      if (parts.length === 1) pieces.push({ c, samples });
+      else for (const p of parts) pieces.push({ c: p, samples: await sample(p) });
+    }
     const faces: FaceBox[][] = [];
     const framed: Cut[] = [];
-    for (const [i, c] of cuts.entries()) {
-      const len = c.end - c.start;
-      const samples: FaceBox[][] = [];
-      for (const f of [0.2, 0.5, 0.8]) samples.push(await facesAt(o.ffmpeg, o.sourcePath, c.start + len * f, src, o.workDir, o.modelsDir));
+    for (const [i, { c, samples }] of pieces.entries()) {
       faces.push(samples.flat());
       const frame = c.frame ?? chooseFrame(samples, src, plan.output);
       o.onStep?.(`Shot ${i + 1}: ${frame.mode === "split" ? "split screen" : frame.mode === "fit" ? "fit the whole shot" : "follow the subject"}`);

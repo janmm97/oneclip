@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boxesOf, chooseFrame, cropAt, frameOf, parseShowinfo, splitAt, splitAtShots, visibleWidth, type EditPlan } from "@oneclip/core";
+import { boxesOf, chooseFrame, cropAt, frameOf, parseShowinfo, samplesDisagree, splitAt, splitAtShots, visibleWidth, type EditPlan } from "@oneclip/core";
 
 const src = { width: 1920, height: 1080 };
 const out = { width: 1080, height: 1920 };
@@ -66,6 +66,23 @@ describe("chooseFrame", () => {
 
   it("ignores small background faces next to the speaker", () => {
     expect(chooseFrame([[face(0.3, 0.3), face(0.9, 0.06)]], src, out).mode).toBe("crop");
+  });
+
+  // Client clip 2026-11: a piece held a wide two-shot and a close-up (missed cut); the split showed one person twice.
+  it("never splits a piece whose samples disagree on the number of people", () => {
+    const f = chooseFrame([[face(0.25), face(0.75)], [face(0.5, 0.4)], [face(0.5, 0.4)]], src, out);
+    expect(f.mode).not.toBe("split");
+    expect(samplesDisagree([[face(0.25), face(0.75)], [face(0.5, 0.4)]])).toBe(true);
+  });
+
+  it("does not split when a sample sees nobody", () => {
+    expect(chooseFrame([[face(0.25), face(0.75)], []], src, out).mode).not.toBe("split");
+  });
+
+  it("splits on the average position across samples", () => {
+    const f = chooseFrame([[face(0.2), face(0.8)], [face(0.3), face(0.7)]], src, out);
+    expect(f).toEqual(splitAt({ x: 0.25, y: 0.375 }, { x: 0.75, y: 0.375 }, src, out));
+    expect(samplesDisagree([[face(0.2), face(0.8)], [face(0.3), face(0.7)]])).toBe(false);
   });
 });
 
