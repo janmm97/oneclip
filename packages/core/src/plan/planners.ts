@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
@@ -135,7 +135,11 @@ export function parseDraft(raw: unknown, source: string): PlanDraft {
   return r.data;
 }
 
-const DRAFT_JSON_SCHEMA = JSON.stringify(z.toJSONSchema(PlanDraftSchema));
+// Draft-07 without the `$schema` line: Claude Code's --json-schema validator rejects the 2020-12 meta-schema URI zod adds by default.
+export const DRAFT_JSON_SCHEMA = (() => {
+  const { $schema: _, ...s } = z.toJSONSchema(PlanDraftSchema, { target: "draft-7" }) as Record<string, unknown>;
+  return JSON.stringify(s);
+})();
 
 /**
  * OpenRouter through the user's One connection (`one actions execute open-router …`). A plain chat completion:
@@ -256,6 +260,44 @@ export class OpenCodePlanner implements EditingPlanner {
   }
 }
 
+/**
+ * OpenAI Codex CLI (`codex exec`). Prompt on stdin, final message to a file. Read-only sandbox (no writes,
+ * no network for commands), the user's config, rules and project docs ignored, nothing saved, empty folder.
+ */
+export class CodexPlanner implements EditingPlanner {
+  readonly name = "Codex";
+  constructor(
+    private readonly bin: string,
+    private readonly opts: { model?: string; timeoutMs?: number } = {},
+  ) {}
+
+  async available() {
+    try {
+      const r = await runProcess(this.bin, ["--version"], { timeoutMs: 20_000 });
+      return r.code === 0 ? { ok: true, detail: r.stdout.trim() } : { ok: false, detail: r.stderr.trim().slice(0, 200) };
+    } catch (e) {
+      return { ok: false, detail: (e as Error).message };
+    }
+  }
+
+  async plan(input: PlanInput): Promise<PlanDraft> {
+    const cwd = await mkdtemp(join(tmpdir(), "oneclip-codex-"));
+    const last = join(cwd, "last.txt");
+    const args = ["exec", "--sandbox", "read-only", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--color", "never", "-C", cwd, "-o", last];
+    if (this.opts.model) args.push("--model", this.opts.model);
+    args.push("-");
+    const prompt = `${SYSTEM}\n\nDo not run commands or read files: everything you need is below.\n\nJSON schema:\n${DRAFT_JSON_SCHEMA}\n\nCandidate:\n${JSON.stringify(agentPayload(input))}\n\nReply with the JSON object only.`;
+    try {
+      const r = await runProcess(this.bin, args, { timeoutMs: this.opts.timeoutMs ?? 240_000, input: prompt, cwd });
+      if (r.code !== 0) throw new Error(`Codex exited ${r.code}: ${redact((r.stderr || r.stdout).slice(-500))}`);
+      const text = await readFile(last, "utf8").catch(() => r.stdout);
+      return parseDraft(extractJsonObject(text), "Codex");
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  }
+}
+
 const DENY_PERMISSIONS = { edit: "deny", bash: "deny", webfetch: "deny", external_directory: "deny" } as const;
 const NO_TOOLS = Object.fromEntries(
   ["*", "bash", "edit", "write", "patch", "read", "grep", "glob", "list", "webfetch", "websearch", "codesearch", "task", "todowrite", "todoread", "skill"].map((t) => [t, false]),
@@ -275,21 +317,50 @@ export const OPENCODE_LOCKDOWN = {
   },
 } as const;
 
-export type PlannerChoice = "auto" | "openrouter" | "claude-code" | "opencode" | "template";
+export type PlannerChoice = "auto" | "openrouter" | "claude-code" | "codex" | "opencode" | "template";
+export type AgentId = Exclude<PlannerChoice, "auto" | "template">;
+export interface PlannerCfg {
+  claudeBin: string;
+  codexBin: string;
+  opencodeBin: string;
+  openrouterModels: string[];
+  openrouterKey?: string;
+}
+
+/** Every AI planner, local coding agents first (a chat edit is the user's own agent's job). */
+function agents(cfg: PlannerCfg, one: OneClient): Record<AgentId, EditingPlanner> {
+  return {
+    "claude-code": new ClaudeCodePlanner(cfg.claudeBin),
+    codex: new CodexPlanner(cfg.codexBin),
+    opencode: new OpenCodePlanner(cfg.opencodeBin),
+    openrouter: new OpenRouterPlanner(one, cfg.openrouterModels),
+  };
+}
+
+/** Which agents work on this machine, for the UI and the doctor. Checked in parallel. */
+export async function detectAgents(cfg: PlannerCfg, one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey })) {
+  const all = Object.entries(agents(cfg, one)) as [AgentId, EditingPlanner][];
+  return Promise.all(all.map(async ([id, p]) => ({ id, name: p.name, ...(await p.available()) })));
+}
 
 /** The chosen planner, or for "auto" OpenRouter via One, then a local agent, then the template. */
-export async function pickPlanner(
-  choice: PlannerChoice,
-  cfg: { claudeBin: string; opencodeBin: string; openrouterModels: string[]; openrouterKey?: string },
-  one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey }),
-): Promise<EditingPlanner> {
-  const openrouter = new OpenRouterPlanner(one, cfg.openrouterModels);
-  const claude = new ClaudeCodePlanner(cfg.claudeBin);
-  const opencode = new OpenCodePlanner(cfg.opencodeBin);
-  if (choice === "openrouter") return openrouter;
-  if (choice === "claude-code") return claude;
-  if (choice === "opencode") return opencode;
+export async function pickPlanner(choice: PlannerChoice, cfg: PlannerCfg, one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey })): Promise<EditingPlanner> {
+  const a = agents(cfg, one);
   if (choice === "template") return new TemplatePlanner();
-  for (const p of [openrouter, claude, opencode]) if ((await p.available()).ok) return p;
+  if (choice !== "auto") return a[choice];
+  for (const p of [a.openrouter, a["claude-code"], a.codex, a.opencode]) if ((await p.available()).ok) return p;
   return new TemplatePlanner();
+}
+
+/**
+ * Planners to try for a chat edit. "auto": every agent that's installed, local coding agents before
+ * OpenRouter. A picked agent: only that one, so the words never go to a helper the user didn't choose.
+ * Empty means only the built-in rules can do it.
+ */
+export async function editPlanners(choice: PlannerChoice, cfg: PlannerCfg, one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey })): Promise<EditingPlanner[]> {
+  if (choice === "template") return []; // the user turned AI off
+  const a = agents(cfg, one);
+  const ids: AgentId[] = choice === "auto" ? ["claude-code", "codex", "opencode", "openrouter"] : [choice];
+  const ok = await Promise.all(ids.map(async (id) => ((await a[id].available()).ok ? a[id] : null)));
+  return ok.filter((p): p is EditingPlanner => p !== null);
 }

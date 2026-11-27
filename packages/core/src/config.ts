@@ -20,6 +20,7 @@ export function config(env: NodeJS.ProcessEnv = process.env) {
     openrouterKey: env.ONE_OPENROUTER_KEY || undefined,
     openrouterModels: list(env.ONECLIP_OPENROUTER_MODELS, 3) ?? DEFAULT_OPENROUTER_MODELS,
     claudeBin: env.CLAUDE_BIN || "claude",
+    codexBin: env.CODEX_BIN || "codex",
     opencodeBin: env.OPENCODE_BIN || "opencode",
     ffmpeg: env.FFMPEG_BIN || "ffmpeg",
     ffprobe: env.FFPROBE_BIN || "ffprobe",
