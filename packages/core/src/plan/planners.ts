@@ -353,15 +353,14 @@ export async function pickPlanner(choice: PlannerChoice, cfg: PlannerCfg, one: O
 }
 
 /**
- * Planners to try for a chat edit, in order: the chosen one, then every other agent that's installed
- * (local coding agents before OpenRouter). Empty means only the built-in rules can do it.
+ * Planners to try for a chat edit. "auto": every agent that's installed, local coding agents before
+ * OpenRouter. A picked agent: only that one, so the words never go to a helper the user didn't choose.
+ * Empty means only the built-in rules can do it.
  */
 export async function editPlanners(choice: PlannerChoice, cfg: PlannerCfg, one: OneClient = new OneClient({ openrouterKey: cfg.openrouterKey })): Promise<EditingPlanner[]> {
   if (choice === "template") return []; // the user turned AI off
   const a = agents(cfg, one);
-  const order: AgentId[] = ["claude-code", "codex", "opencode", "openrouter"];
-  const first = choice !== "auto" ? [choice] : [];
-  const ids = [...first, ...order.filter((id) => !first.includes(id))];
+  const ids: AgentId[] = choice === "auto" ? ["claude-code", "codex", "opencode", "openrouter"] : [choice];
   const ok = await Promise.all(ids.map(async (id) => ((await a[id].available()).ok ? a[id] : null)));
   return ok.filter((p): p is EditingPlanner => p !== null);
 }

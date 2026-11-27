@@ -58,4 +58,10 @@ describe("editPlanners", () => {
     const one = { findOpenRouterConnection: async () => { throw new Error("none"); } } as never;
     expect((await editPlanners("codex", cfg, one)).map((p) => p.name)).toEqual([]);
   });
+  it("asks only the picked agent, never another one", async () => {
+    const one = { findOpenRouterConnection: async () => ({}) } as never; // OpenRouter would be available
+    const installed = { ...cfg, claudeBin: process.execPath, codexBin: process.execPath }; // `node --version` stands in for an installed agent
+    expect((await editPlanners("codex", installed, one)).map((p) => p.name)).toEqual([expect.stringMatching(/codex/i)]);
+    expect((await editPlanners("auto", installed, one)).length).toBe(3);
+  });
 });
