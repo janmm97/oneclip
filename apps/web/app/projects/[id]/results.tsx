@@ -12,12 +12,12 @@ import { EditChat } from "./edit-chat";
 import { Timeline } from "./timeline";
 
 const DIMENSIONS: Record<keyof typeof WEIGHTS, string> = {
-  hookStrength: "Hook",
-  standaloneClarity: "Clarity",
-  narrativePayoff: "Payoff",
-  novelty: "Novelty",
-  emotionalEngagement: "Emotion",
-  editingSuitability: "Editability",
+  hookStrength: "Grabs attention",
+  standaloneClarity: "Easy to follow",
+  narrativePayoff: "Good ending",
+  novelty: "Something new",
+  emotionalEngagement: "Makes you feel something",
+  editingSuitability: "Easy to edit",
 };
 const hookName = (h: HookType) => (h === "none" ? "No clear hook" : h.replace(/[_-]/g, " ").replace(/^./, (c) => c.toUpperCase()));
 
@@ -75,11 +75,11 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
       <section aria-labelledby="ranked" className="grid content-start gap-3">
         <div className="flex items-center justify-between">
           <h2 id="ranked" className="text-sm font-medium text-muted">
-            Clips
+            Your clips
           </h2>
           <Button size="sm" variant="primary" onClick={() => render("final")} loading={busy === "final:all"} disabled={anyPending}>
             <Clapperboard aria-hidden />
-            Render all
+            Save all
           </Button>
         </div>
         <ol className="grid gap-1.5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-1">
@@ -98,7 +98,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
                   <span className="block truncate text-sm">“{c.candidate.openingText}”</span>
                   <span className="num block truncate text-xs text-muted">
                     {fmtTime(c.candidate.start)}–{fmtTime(c.candidate.end)}
-                    {pending(c.id) ? " · working" : ""}
+                    {pending(c.id) ? " · Working…" : ""}
                   </span>
                 </span>
                 <span className="num text-xs font-medium">{Math.round(c.evaluation.final * 100)}</span>
@@ -145,14 +145,14 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => render("preview", clip.id)} loading={busy === `preview:${clip.id}`} disabled={pending(clip.id) || !clip.plan}>
             <Eye aria-hidden />
-            Quick preview
+            Quick look
           </Button>
           <Button size="sm" variant="primary" onClick={() => render("final", clip.id)} loading={busy === `final:${clip.id}`} disabled={pending(clip.id) || !clip.plan}>
             <Clapperboard aria-hidden />
-            Render 1080p
+            Save video
           </Button>
           <div className="ml-auto flex items-center gap-1" role="group" aria-label="Rate this pick">
-            <span className="mr-1 text-xs text-muted">Good pick?</span>
+            <span className="mr-1 text-xs text-muted">Like this clip?</span>
             {(
               [
                 ["good", ThumbsUp, "text-good"],
@@ -167,50 +167,49 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
           </div>
         </div>
 
-        {lastFail && !pending(clip.id) ? <Notice tone="warn">Last render failed: {lastFail.error}</Notice> : null}
+        {lastFail && !pending(clip.id) ? <Notice tone="warn">Couldn't save the last video: {lastFail.error}</Notice> : null}
         {error ? <Notice>{error}</Notice> : null}
 
         {clip.plan ? <Timeline plan={clip.plan} at={at} onSeek={(t) => player.current?.seekTo(Math.round(t * fps))} /> : null}
 
         <details className="group text-sm">
           <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-muted hover:text-fg">
-            Why Jev picked it
+            Why this clip?
             <Badge tone="tally">{hookName(clip.evaluation.hookType)}</Badge>
             {clip.evaluation.penalties.map((p) => (
               <Badge key={p} tone="warn">
                 {p}
               </Badge>
             ))}
-            <span className="ml-auto text-xs">{clip.planner ? `Plan: ${clip.planner}` : null}</span>
           </summary>
           <div className="mt-3 grid gap-4">
             {clip.evaluation.hookType !== "none" ? <p className="text-muted">{HOOK_TYPES[clip.evaluation.hookType]}</p> : null}
             <dl className="grid gap-2 sm:grid-cols-2 sm:gap-x-6">
               {(Object.keys(DIMENSIONS) as (keyof typeof WEIGHTS)[]).map((d) => (
-                <div key={d} className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
+                <div key={d} className="grid grid-cols-[9.5rem_minmax(0,1fr)] items-center gap-3">
                   <dt className="text-muted">
-                    {DIMENSIONS[d]} <span className="num text-xs">×{WEIGHTS[d]}</span>
+                    {DIMENSIONS[d]}
                   </dt>
                   <dd>
                     <Meter value={clip.evaluation.scores[d]} label={DIMENSIONS[d]} />
                   </dd>
                 </div>
               ))}
-              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
-                <dt className="text-muted">Stands alone</dt>
+              <div className="grid grid-cols-[9.5rem_minmax(0,1fr)] items-center gap-3">
+                <dt className="text-muted">Makes sense on its own</dt>
                 <dd>
-                  <Meter value={clip.evaluation.contextIntegrity} label="Context integrity" />
+                  <Meter value={clip.evaluation.contextIntegrity} label="Makes sense on its own" />
                 </dd>
               </div>
-              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
-                <dt className="font-medium">Final</dt>
+              <div className="grid grid-cols-[9.5rem_minmax(0,1fr)] items-center gap-3">
+                <dt className="font-medium">Overall</dt>
                 <dd>
-                  <Meter value={clip.evaluation.final} label="Final score" tone="tally" />
+                  <Meter value={clip.evaluation.final} label="Overall" tone="tally" />
                 </dd>
               </div>
             </dl>
             <div>
-              <p className="text-muted">Transcript</p>
+              <p className="text-muted">What's said</p>
               <p className="mt-1 max-h-48 overflow-auto leading-relaxed">{clip.candidate.transcript}</p>
             </div>
           </div>
@@ -220,7 +219,7 @@ export function Results({ projectId, view, clips, refresh }: { projectId: string
       {clip.plan ? (
         <EditChat key={clip.id} projectId={projectId} clipId={clip.id} jobs={view.jobs} refresh={refresh} />
       ) : (
-        <p className="glass rounded-xl p-4 text-sm text-muted">This clip has no edit plan yet, so there is nothing to edit.</p>
+        <p className="glass rounded-xl p-4 text-sm text-muted">This clip isn't ready to change yet.</p>
       )}
     </div>
   );

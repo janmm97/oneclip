@@ -12,7 +12,7 @@ const busy = (j?: Job) => j?.status === "queued" || j?.status === "running";
 
 function Steps({ edit, render }: { edit: Job; render?: Job }) {
   const steps = edit.log ?? [];
-  const lines = busy(edit) && !steps.length ? [edit.message ?? "Waiting for the worker"] : steps;
+  const lines = busy(edit) && !steps.length ? [edit.message ?? "Starting up…"] : steps;
   return (
     <ol className="grid gap-1.5 text-sm">
       {lines.map((line, i) => {
@@ -37,7 +37,7 @@ function Steps({ edit, render }: { edit: Job; render?: Job }) {
           <span className={cn("mt-1 grid size-3.5 shrink-0 place-items-center rounded-full", busy(render) ? "tally-live bg-tally" : render.status === "failed" ? "bg-bad/15" : "bg-good/15 text-good")}>
             {render.status === "done" ? <Check className="size-2.5" aria-hidden /> : null}
           </span>
-          {busy(render) ? `${render.message ?? "Rendering"} · ${Math.round((render.progress ?? 0) * 100)}%` : render.status === "done" ? "Preview rendered" : `Preview failed: ${render.error}`}
+          {busy(render) ? `${render.message ?? "Making the preview"} · ${Math.round((render.progress ?? 0) * 100)}%` : render.status === "done" ? "New preview ready" : `Couldn't make the preview: try again. ${render.error ?? ""}`}
         </li>
       ) : null}
     </ol>
@@ -82,9 +82,9 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
       <header className="flex items-center gap-2 border-b border-line px-4 py-3">
         <span className={cn("size-2 rounded-full", working ? "tally-live bg-tally" : "bg-line")} aria-hidden />
         <h2 id="edit-chat" className="text-sm font-medium">
-          Editor
+          Ask for changes
         </h2>
-        <span className="ml-auto text-xs text-muted">{working ? "Editing…" : "Ready"}</span>
+        <span className="ml-auto text-xs text-muted">{working ? "Working on it…" : "Ready"}</span>
       </header>
 
       <ol ref={feed} className="grid flex-1 content-start gap-4 overflow-y-auto px-4 py-4" aria-live="polite">
@@ -98,8 +98,8 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
           ))
         ) : (
           <li className="grid gap-3 text-sm text-muted">
-            <p>Tell the editor what to change on this clip. It reframes, cuts, retimes, mutes and re-captions, shows each step here, then renders a new preview.</p>
-            <p>Shots are numbered on the timeline. Try:</p>
+            <p>Tell it what to change in plain words. It edits the clip and shows a new preview.</p>
+            <p>Try:</p>
             <div className="flex flex-wrap gap-1.5">
               {EDIT_EXAMPLES.slice(0, 6).map((x) => (
                 <button key={x} onClick={() => setText(x)} className="press rounded-full border border-line bg-raised px-3 py-1 text-xs text-fg transition-colors duration-150 hover:border-tally/60">
@@ -125,7 +125,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
           }}
           maxLength={500}
           rows={2}
-          placeholder={working ? "Wait for this edit to finish…" : "e.g. split shot 2 and add karaoke captions"}
+          placeholder={working ? "Wait for this edit to finish…" : "Like 'make the words bigger'"}
           className="w-full resize-none rounded-[1.1rem] border border-line bg-raised px-3.5 py-2 text-sm placeholder:text-muted focus:border-tally/60 focus:outline-none"
         />
         <div className="flex items-center gap-2">

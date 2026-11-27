@@ -1,16 +1,18 @@
 "use client";
 
-import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, RATIO_LABELS, RATIOS, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
+import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, RATIOS, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
 import { Check, Link2, Minus, Play, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Button, Field, Input, Notice, Segmented, Select } from "@/components/ui";
 import { clampTopN, TOP_N_MAX, TOP_N_MIN, toggleRatio } from "@/lib/form";
 import { api, cn } from "@/lib/utils";
 
-/** "Quick (10–20s)" shows as "Quick" over "10–20s" so four segments fit a phone. */
+/** Plain names for the length presets; the seconds stay as a small second line so four segments fit a phone. */
+const LENGTH_NAMES: Record<string, string> = { quick: "Super short", short: "Short", standard: "Medium", extended: "Long" };
 const PRESETS = Object.entries(DURATION_PRESETS).map(([k, v]) => {
-  const [name, range] = v.label.replace(")", "").split(" (");
+  const range = v.label.match(/\((.+)\)/)?.[1];
+  const name = LENGTH_NAMES[k] ?? v.label;
   return [
     k,
     <span key={k} className="grid py-1 leading-tight">
@@ -20,8 +22,8 @@ const PRESETS = Object.entries(DURATION_PRESETS).map(([k, v]) => {
   ] as const;
 });
 const RENDERERS = [
-  ["remotion", "Remotion · animated captions"],
-  ["ffmpeg", "FFmpeg · fastest"],
+  ["remotion", "Animated (slower)"],
+  ["ffmpeg", "Simple (faster)"],
 ] as const;
 
 /** A settings group, like a section in iOS Settings. */
@@ -44,18 +46,20 @@ function Row({ label, hint, children }: { label: string; hint?: ReactNode; child
     </div>
   );
 }
+/** Where each shape gets posted, in plain words. */
+const PLACES: Record<Ratio, string> = { "9:16": "TikTok, Reels, Shorts (tall)", "4:5": "Instagram post", "1:1": "Square", "16:9": "YouTube (wide)", "4:3": "Old-TV shape" };
 const CAPTIONS = [
-  ["english", "English (translated when needed)"],
-  ["original", "Original language"],
-  ["off", "No captions"],
+  ["english", "English"],
+  ["original", "Same language as the video"],
+  ["off", "No subtitles"],
 ] as const;
-const CONTENT = [["auto", "Auto-detect"], ...Object.entries(CONTENT_TYPES).map(([k, v]) => [k, v.label] as const)] as const;
+const CONTENT = [["auto", "Let OneClip guess"], ...Object.entries(CONTENT_TYPES).map(([k, v]) => [k, k === "footage" ? "Other" : v.label] as const)] as const;
 const PLANNERS = [
-  ["auto", "Auto (best available)"],
-  ["openrouter", "OpenRouter via One (cheap models)"],
-  ["claude-code", "Claude Code"],
-  ["opencode", "OpenCode"],
-  ["template", "Template (no agent)"],
+  ["auto", "Automatic"],
+  ["openrouter", "Online AI (small cost)"],
+  ["claude-code", "Claude Code (on this computer)"],
+  ["opencode", "OpenCode (on this computer)"],
+  ["template", "Basic, no AI"],
 ] as const;
 
 export function NewProject() {
@@ -66,6 +70,8 @@ export function NewProject() {
   const [s, setS] = useState({ preset: "standard", topN: 5, renderer: "remotion", planner: "auto", captions: "english", content: "auto", ratios: ["9:16"] as Ratio[] });
   const [busy, setBusy] = useState<"meta" | "go">();
   const [error, setError] = useState<string>();
+  const [needsTick, setNeedsTick] = useState(false);
+  const ownership = useRef<HTMLInputElement>(null);
 
   const clean = source.trim().replace(/^"|"$/g, "");
   const isLink = /^https?:\/\//i.test(clean);
@@ -87,6 +93,10 @@ export function NewProject() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!authorized) {
+      setNeedsTick(true);
+      return ownership.current?.focus();
+    }
     setBusy("go");
     setError(undefined);
     try {
@@ -104,8 +114,8 @@ export function NewProject() {
   return (
     <form onSubmit={submit} className="glass mt-8 grid gap-5 rounded-xl p-[clamp(1rem,1.6vw,1.75rem)]">
       <Field
-        label="Video or podcast"
-        hint="Paste a link from YouTube or any video, audio or podcast site, or the full path to a video or audio file on this computer (on Windows: Shift + right-click the file → Copy as path)."
+        label="Your video"
+        hint="Paste a YouTube link (or any video link), or the full path to a video on this computer."
       >
         <div className="flex gap-2">
           <Input
@@ -136,15 +146,15 @@ export function NewProject() {
           </div>
         </div>
       ) : isLink ? (
-        <p className="-mt-2 text-xs text-muted">OneClip downloads this link when the analysis starts.</p>
+        <p className="-mt-2 text-xs text-muted">OneClip gets this video when it starts making clips.</p>
       ) : null}
 
-      <Group title="Clips">
-        <Row label="Clip length">
-          <Segmented label="Clip length" options={PRESETS} value={s.preset} onChange={(preset) => setS({ ...s, preset })} />
+      <Group title="Your clips">
+        <Row label="How long?">
+          <Segmented label="How long?" options={PRESETS} value={s.preset} onChange={(preset) => setS({ ...s, preset })} />
         </Row>
         <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-          <Row label="Clips to keep">
+          <Row label="How many clips?">
             <div className="flex h-10 w-fit items-center gap-1 rounded-md bg-raised p-1">
               <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="Fewer clips" disabled={s.topN <= TOP_N_MIN} onClick={() => setS({ ...s, topN: clampTopN(s.topN - 1) })}>
                 <Minus aria-hidden />
@@ -157,8 +167,8 @@ export function NewProject() {
               </Button>
             </div>
           </Row>
-          <Row label="Frame ratios" hint="Each clip renders once per ratio. 9:16 for phones, 16:9 for desktop.">
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Frame ratios">
+          <Row label="Where will you post?" hint={`${s.topN} clips × ${s.ratios.length} ${s.ratios.length === 1 ? "shape" : "shapes"} = ${s.topN * s.ratios.length} videos`}>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Where will you post?">
               {RATIOS.map((r) => {
                 const on = s.ratios.includes(r);
                 return (
@@ -174,7 +184,7 @@ export function NewProject() {
                     )}
                   >
                     {on ? <Check className="size-3.5" aria-hidden /> : null}
-                    {RATIO_LABELS[r]}
+                    {PLACES[r]}
                   </button>
                 );
               })}
@@ -183,36 +193,49 @@ export function NewProject() {
         </div>
       </Group>
 
-      <Group title="Render">
-        <Row label="Renderer">
-          <Segmented label="Renderer" options={RENDERERS} value={s.renderer} onChange={(renderer) => setS({ ...s, renderer })} />
+      <Group title="Expert settings">
+        <Row label="Caption style">
+          <Segmented label="Caption style" options={RENDERERS} value={s.renderer} onChange={(renderer) => setS({ ...s, renderer })} />
         </Row>
-        <Field label="Captions" hint="English uses the link's own English subtitles when it has them, otherwise Whisper translates the speech or lyrics on this computer.">
+        <Field label="Subtitles" hint="English uses the video's own English subtitles when it has them, otherwise OneClip translates the words on this computer.">
           <Select options={CAPTIONS} value={s.captions} onChange={(e) => setS({ ...s, captions: e.target.value })} />
         </Field>
-      </Group>
-
-      <Group title="Understanding">
-        <Field label="Content type" hint="Tells Jev what the best part looks like: the chorus of a song, the payoff of a podcast story, the play in gameplay. Auto reads the title, category and the sound and picture.">
+        <Field label="What kind of video is it?" hint="Helps Jev, OneClip's clip judge, spot the best part: the chorus of a song, the end of a story, the big play in a game.">
           <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
         </Field>
-        <Field label="Edit planner" hint="Auto tries OpenRouter via One, then Claude Code, then OpenCode, then the built-in template. Clip transcripts go to the AI planner you use (and to Jev for scoring). Pick Template to skip the AI planner and keep that step on this computer.">
+        <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, then OpenCode, then the basic one. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
+        <p className="text-xs text-muted">Uses a little Jev credit for each moment it checks. Making clips again from the same video is free.</p>
       </Group>
 
       <label className="flex items-start gap-2.5 text-sm">
-        <input type="checkbox" checked={authorized} onChange={(e) => setAuthorized(e.target.checked)} className="mt-0.5 size-4 accent-(--color-tally)" />
-        <span>I own this video or am authorised to edit it.</span>
+        <input
+          ref={ownership}
+          type="checkbox"
+          checked={authorized}
+          onChange={(e) => {
+            setAuthorized(e.target.checked);
+            setNeedsTick(false);
+          }}
+          aria-describedby={needsTick ? "tick-first" : undefined}
+          aria-invalid={needsTick || undefined}
+          className="mt-0.5 size-4 accent-(--color-tally)"
+        />
+        <span>This is my video, or I have permission to use it</span>
       </label>
+      {needsTick ? (
+        <p id="tick-first" role="alert" className="-mt-3 text-sm font-medium text-bad">
+          Tick this first
+        </p>
+      ) : null}
 
       {error ? <Notice>{error}</Notice> : null}
 
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-xs text-muted">Ranking costs about 1,400 Jev tokens per candidate on your TypeSafe account. Re-runs use the cache.</p>
-        <Button type="submit" variant="primary" loading={busy === "go"} disabled={!authorized || !clean}>
+      <div className="flex items-center justify-end gap-4">
+        <Button type="submit" variant="primary" loading={busy === "go"}>
           <Play aria-hidden />
-          Find clips
+          Make my clips
         </Button>
       </div>
     </form>

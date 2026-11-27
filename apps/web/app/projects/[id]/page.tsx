@@ -41,9 +41,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
           ) : null}
         </div>
         {view.project.status === "ready" ? (
-          <ButtonLink href={`/projects/${id}/exports`} aria-label={`Exports: ${exported} ${exported === 1 ? "video" : "videos"} rendered`}>
+          <ButtonLink href={`/projects/${id}/exports`} aria-label={`My videos: ${exported} ${exported === 1 ? "video" : "videos"} saved`}>
             <Film aria-hidden />
-            Exports
+            My videos
             <span className="num rounded-full bg-raised px-2 py-0.5 text-xs text-muted">
               {exported} {exported === 1 ? "video" : "videos"}
             </span>
@@ -56,7 +56,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       {view.project.status === "failed" ? (
         <div className="mt-8 grid max-w-2xl gap-3">
           <Notice>
-            <span className="whitespace-pre-wrap">{analyze?.error ?? view.project.error ?? "Analysis failed."}</span>
+            <span className="whitespace-pre-wrap">{analyze?.error ?? view.project.error ?? "Something went wrong while making your clips."}</span>
           </Notice>
           <div className="flex gap-2">
             <Button onClick={retry} loading={retrying}>
@@ -64,7 +64,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
               Try again
             </Button>
             <ButtonLink href="/setup" variant="ghost">
-              Check setup
+              Check my computer
             </ButtonLink>
           </div>
         </div>

@@ -39,19 +39,19 @@ export default function Setup() {
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[clamp(1.9rem,1rem+2vw,3.25rem)] leading-tight font-bold tracking-[-0.03em]">Setup</h1>
+          <h1 className="text-[clamp(1.9rem,1rem+2vw,3.25rem)] leading-tight font-bold tracking-[-0.03em]">Check my computer</h1>
           <p className="mt-1 text-sm text-muted">
-            Same checks as <code className="font-mono text-fg">pnpm run doctor</code>. Fix anything red, then start a project.
+            We check that everything OneClip needs is installed. Fix anything red, then make clips.
           </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => run(false)} loading={busy === "get"} disabled={!!busy}>
             <RefreshCw aria-hidden />
-            Re-check
+            Check again
           </Button>
-          <Button onClick={() => run(true)} loading={busy === "jev"} disabled={!!busy} title="Sends one tiny question to Jev (~300 tokens on your TypeSafe account)">
+          <Button onClick={() => run(true)} loading={busy === "jev"} disabled={!!busy}>
             <Zap aria-hidden />
-            Test Jev live
+            Test the clip judge (uses a tiny bit of credit)
           </Button>
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function Setup() {
       {checks ? (
         <>
           <p className={cn("mt-6 text-sm font-medium", blocking ? "text-bad" : "text-good")}>
-            {blocking ? `${blocking} required ${blocking === 1 ? "check fails" : "checks fail"}` : "Ready to clip"}
+            {blocking ? `${blocking} ${blocking === 1 ? "thing" : "things"} to fix before you can make clips` : "All set: go make clips!"}
           </p>
           <ul className="mt-3 divide-y divide-line glass rounded-xl">
             {checks.map((c) => {
@@ -72,7 +72,7 @@ export default function Setup() {
                   <div className="min-w-0 flex-1 text-sm">
                     <p className="flex items-center gap-2 font-medium">
                       {c.label}
-                      {!c.required ? <Badge>optional</Badge> : null}
+                      {!c.required ? <Badge>Nice to have</Badge> : null}
                     </p>
                     <p className="mt-0.5 break-words text-muted">{c.detail}</p>
                     {!c.ok && c.fix ? <p className="mt-1 font-mono text-xs text-fg">{c.fix}</p> : null}

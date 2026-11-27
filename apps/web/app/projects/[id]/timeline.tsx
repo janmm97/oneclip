@@ -9,10 +9,10 @@ const lengthOut = (c: Cut) => (c.end - c.start) / (c.speed ?? 1);
 
 function FrameIcon({ cut }: { cut: Cut }) {
   const f = cut.frame;
-  if (f?.mode === "split") return <Rows2 aria-label="split screen" />;
-  if (f?.mode === "fit") return <Expand aria-label="whole shot" />;
+  if (f?.mode === "split") return <Rows2 aria-label="Two people" />;
+  if (f?.mode === "fit") return <Expand aria-label="Full picture" />;
   if (f?.zoom && f.zoom > 1) return <ZoomIn aria-label={`zoomed ${f.zoom}×`} />;
-  return <Crosshair aria-label={f ? "follow" : "auto framing"} />;
+  return <Crosshair aria-label={f ? "Follows the speaker" : "Auto"} />;
 }
 
 /** The clip as an editor sees it: shots and captions on one output-time axis, with the playhead. Click a shot to jump to it. */
@@ -39,7 +39,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
           ))}
         </div>
 
-        <span className="self-center text-muted">Shots</span>
+        <span className="self-center text-muted">Scenes</span>
         <div className="relative">
           <ol className="flex h-11 gap-0.5 overflow-hidden rounded-md">
             {shots.map(({ c, i, start, end }) => {
@@ -48,7 +48,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
                 <li key={i} style={{ width: pct(end - start) }} className="min-w-0">
                   <button
                     onClick={() => onSeek(start)}
-                    title={`Shot ${i + 1}: ${fmtTime(c.start)}–${fmtTime(c.end)} in the source, ${(end - start).toFixed(1)} s`}
+                    title={`Scene ${i + 1}: ${fmtTime(c.start)}–${fmtTime(c.end)} in the source, ${(end - start).toFixed(1)} s`}
                     aria-current={live || undefined}
                     className={cn(
                       "press flex h-full w-full items-center gap-1 overflow-hidden pr-1.5 pl-2.5 text-left transition-colors duration-150 [&_svg]:size-3 [&_svg]:shrink-0",
@@ -58,7 +58,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
                     <span className="num font-medium">{i + 1}</span>
                     <FrameIcon cut={c} />
                     {c.speed && c.speed !== 1 ? <span className="num">{c.speed}×</span> : null}
-                    {c.muted ? <VolumeX aria-label="muted" /> : null}
+                    {c.muted ? <VolumeX aria-label="No sound" /> : null}
                   </button>
                 </li>
               );
@@ -68,7 +68,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
           <span className="pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 rounded-full bg-tally shadow-[0_0_8px_var(--color-tally)]" style={{ left: pct(at) }} aria-hidden />
         </div>
 
-        <span className="self-center text-muted">Captions</span>
+        <span className="self-center text-muted">Subtitles</span>
         <div className="relative h-7 overflow-hidden rounded-md bg-raised">
           {plan.captions.map((p, i) => (
             <span
@@ -85,7 +85,7 @@ export function Timeline({ plan, at, onSeek }: { plan: EditPlan; at: number; onS
 
         {plan.zoomEvents.length ? (
           <>
-            <span className="self-center text-muted">Punch-ins</span>
+            <span className="self-center text-muted">Zooms</span>
             <div className="relative h-3">
               {plan.zoomEvents.map((z, i) => (
                 <span key={i} className="absolute inset-y-0 rounded-sm bg-tally/40" style={{ left: pct(z.at), width: pct(z.duration) }} title={`Zoom ${Math.round((z.scale - 1) * 100)}% at ${fmtTime(z.at)}`} />
