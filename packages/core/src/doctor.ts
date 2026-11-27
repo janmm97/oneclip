@@ -1,4 +1,5 @@
 import type { Config } from "./config.ts";
+import { checkHelp, type CheckHelp } from "./doctor-help.ts";
 import { OneClient, OneError } from "./one/client.ts";
 import { pickPlanner } from "./plan/planners.ts";
 import { runProcess } from "./proc.ts";
@@ -14,6 +15,8 @@ export interface Check {
   required: boolean;
   detail: string;
   fix?: string;
+  /** Plain-words why, one command for this OS and what success looks like (see doctor-help.ts). */
+  help?: CheckHelp;
 }
 
 async function version(bin: string, args: string[]) {
@@ -32,7 +35,7 @@ async function version(bin: string, args: string[]) {
 export async function runChecks(cfg: Config, opts: { one?: OneClient; testJev?: boolean; remotion?: { available(): Promise<{ ok: boolean; detail: string }> } } = {}): Promise<Check[]> {
   const one = opts.one ?? new OneClient({ typesafeKey: cfg.typesafeKey, openrouterKey: cfg.openrouterKey });
   const checks: Check[] = [];
-  const add = (c: Check) => checks.push(c);
+  const add = (c: Check) => checks.push({ ...c, help: checkHelp(c.id, process.platform, cfg.python) });
 
   const nodeMajor = Number(process.versions.node.split(".")[0]);
   add({ id: "node", label: "Node.js 22.13+", required: true, ok: nodeMajor >= 23 || (nodeMajor === 22 && Number(process.versions.node.split(".")[1]) >= 13), detail: `v${process.versions.node}`, fix: "Install Node.js 22 LTS or newer from nodejs.org" });
