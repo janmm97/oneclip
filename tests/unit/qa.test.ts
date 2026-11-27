@@ -109,6 +109,16 @@ describe("fixPlan", () => {
     expect(changes).toHaveLength(1);
   });
 
+  it("never flips a caption page back on a later pass", () => {
+    const page = plan.captions[0]!;
+    const issue = { at: page.start, kind: "caption_over_face" as const, severity: "major" as const, detail: "", fix: "move_captions" as const, by: "x" };
+    const moved = new Set<number>();
+    const first = fixPlan(plan, [issue], moved);
+    const second = fixPlan(first.plan, [issue], moved);
+    expect(second.changes).toEqual([]);
+    expect(second.plan.captions[0]!.y).toBe(first.plan.captions[0]!.y);
+  });
+
   it("reports no change when nothing has a fix, so the loop stops", () => {
     expect(fixPlan(plan, [{ at: 1, kind: "blurry", severity: "minor", detail: "", fix: "none", by: "x" }]).changes).toEqual([]);
   });

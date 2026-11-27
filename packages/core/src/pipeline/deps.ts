@@ -20,8 +20,8 @@ export function createDeps(db: Db, cfg: Config, extra: { remotion?: VideoRendere
     evaluator: (cache) => new JevHookEvaluator(one, { model: cfg.jevModel, concurrency: cfg.jevConcurrency, cache }),
     planner: (s) => pickPlanner(s.planner, cfg, one),
     describer: (s) => pickDescriber(s.vision, { claudeBin: cfg.claudeBin }),
-    // Same check as the scene describer: only when the user's Claude Code is installed.
-    reviewer: async (s) => (s.qa === "off" || !(await new ClaudeCodeVisionDescriber(cfg.claudeBin).available()) ? undefined : new ClaudeCodeRenderReviewer(cfg.claudeBin)),
+    // Same rule as the scene describer: only with vision on and the user's Claude Code installed.
+    reviewer: async (s) => (s.qa === "off" || s.vision === "off" || !(await new ClaudeCodeVisionDescriber(cfg.claudeBin).available()) ? undefined : new ClaudeCodeRenderReviewer(cfg.claudeBin)),
     renderers: { ffmpeg: new FfmpegRenderer(cfg.ffmpeg), remotion: extra.remotion },
   };
 }

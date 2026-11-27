@@ -274,12 +274,11 @@ export async function reviewRender(
  * Applies the fixes the review asked for: `fit` on the shot the problem is in, captions moved to the other
  * half of the frame. Returns the plan and what changed; nothing changed means another render won't help.
  */
-export function fixPlan(plan: EditPlan, issues: QaIssue[]): { plan: EditPlan; changes: string[] } {
+export function fixPlan(plan: EditPlan, issues: QaIssue[], moved = new Set<number>()): { plan: EditPlan; changes: string[] } {
   const starts = cutStarts(plan);
   const cuts = plan.cuts.map((c) => ({ ...c }));
   const captions = plan.captions.map((c) => ({ ...c }));
   const changes = new Set<string>();
-  const moved = new Set<number>();
   for (const i of issues) {
     if (i.fix === "fit") {
       let k = starts.findLastIndex((s) => s <= i.at + 1e-6);
