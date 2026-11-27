@@ -21,6 +21,7 @@ export function openDb(path: string): Db {
   const has = (table: string, col: string) => (raw.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === col);
   if (!has("projects", "source_url")) raw.exec("ALTER TABLE projects ADD COLUMN source_url TEXT");
   for (const t of ["jobs", "renders"]) if (!has(t, "ratio")) raw.exec(`ALTER TABLE ${t} ADD COLUMN ratio TEXT`);
+  if (!has("renders", "qa")) raw.exec("ALTER TABLE renders ADD COLUMN qa TEXT");
   for (const c of ["instruction", "log"]) if (!has("jobs", c)) raw.exec(`ALTER TABLE jobs ADD COLUMN ${c} TEXT`);
   return drizzle(
     async (sql, params, method) => {

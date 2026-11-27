@@ -4,9 +4,10 @@ import { JevHookEvaluator } from "../jev/evaluator.ts";
 import { OneClient } from "../one/client.ts";
 import { pickPlanner } from "../plan/planners.ts";
 import { FfmpegRenderer } from "../render/ffmpeg-renderer.ts";
+import { ClaudeCodeRenderReviewer } from "../render/qa.ts";
 import type { VideoRenderer } from "../render/types.ts";
 import { pickTranscriber } from "../transcription/providers.ts";
-import { pickDescriber } from "../vision/scenes.ts";
+import { ClaudeCodeVisionDescriber, pickDescriber } from "../vision/scenes.ts";
 import type { PipelineDeps } from "./pipeline.ts";
 
 /** Real dependencies. Pass extra renderers (Remotion lives in its own package). */
@@ -19,6 +20,8 @@ export function createDeps(db: Db, cfg: Config, extra: { remotion?: VideoRendere
     evaluator: (cache) => new JevHookEvaluator(one, { model: cfg.jevModel, concurrency: cfg.jevConcurrency, cache }),
     planner: (s) => pickPlanner(s.planner, cfg, one),
     describer: (s) => pickDescriber(s.vision, { claudeBin: cfg.claudeBin }),
+    // Same check as the scene describer: only when the user's Claude Code is installed.
+    reviewer: async (s) => (s.qa === "off" || !(await new ClaudeCodeVisionDescriber(cfg.claudeBin).available()) ? undefined : new ClaudeCodeRenderReviewer(cfg.claudeBin)),
     renderers: { ffmpeg: new FfmpegRenderer(cfg.ffmpeg), remotion: extra.remotion },
   };
 }

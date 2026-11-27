@@ -180,7 +180,43 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     expect(dirname(r?.path ?? "")).toBe(folder);
     expect(basename(r?.path ?? "")).toMatch(/^01(-[\p{L}\p{N}-]+)?\.mp4$/u);
     expect(readdirSync(folder)).toContain(basename(r?.path ?? ""));
+    // No agent in tests: the strict check still runs the FFmpeg and face checks and saves its report.
+    expect(r?.qa).toMatchObject({ verdict: "checks-only", reviewer: "checks", passes: 1 });
+    expect((r?.qa as { frames: number }).frames).toBeGreaterThan(0);
   }, 300_000);
+
+  it("fixes what the reviewer flags and renders again before the clip reaches Exports", async () => {
+    // MOCK reviewer: flags a caption over a face on the first look, finds nothing on the second.
+    // (A test pattern has no faces, so its shots are already "fit"; the fit fix is covered in tests/unit/qa.test.ts.)
+    const seen: number[] = [];
+    deps.reviewer = async () => ({
+      name: "mock reviewer",
+      review: async (frames) => {
+        seen.push(frames.length);
+        return seen.length === 1
+          ? { issues: [{ at: frames[1]?.at ?? 0, kind: "caption_over_face" as const, severity: "major" as const, detail: "Caption covers the speaker's mouth.", fix: "move_captions" as const, by: "mock reviewer" }], score: 4 }
+          : { issues: [], score: 9 };
+      },
+    });
+    try {
+      const clip = (await deps.db.select().from(schema.clips).all()).find((c) => c.rank === 1);
+      const before = (await deps.db.select().from(schema.renders).all()).length;
+      await queueRenders(deps.db, projectId, "final", clip?.id);
+      const job = await claimNext(deps.db);
+      await runJob(deps, job as NonNullable<typeof job>);
+      const all = await deps.db.select().from(schema.renders).all();
+      const r = all[all.length - 1];
+      expect(all.length).toBe(before + 1);
+      expect(r?.status).toBe("done");
+      expect(seen.length).toBe(2);
+      // Only the technical checks on a test pattern may remain; the agent's problem is gone and the fix is listed.
+      expect(r?.qa).toMatchObject({ reviewer: "mock reviewer", passes: 2, fixed: [expect.stringMatching(/^Captions at .* moved to the (top|bottom) \(caption over face\)$/)] });
+      expect((r?.qa as { issues: { by: string }[] }).issues.filter((i) => i.by === "mock reviewer")).toEqual([]);
+      expect(existsSync(r?.path ?? "")).toBe(true);
+    } finally {
+      deps.reviewer = undefined;
+    }
+  }, 600_000);
 
   it("applies a chat edit, logs each step and queues a new preview", async () => {
     const clip = (await deps.db.select().from(schema.clips).all()).find((c) => c.rank === 1) as typeof schema.clips.$inferSelect;

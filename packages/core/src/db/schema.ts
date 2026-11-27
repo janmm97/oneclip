@@ -72,6 +72,8 @@ export const renders = sqliteTable("renders", {
   thumbPath: text("thumb_path"),
   status: text("status").notNull(), // done | failed
   verify: text("verify", { mode: "json" }),
+  /** The quality check's report (QaReport), final renders only. */
+  qa: text("qa", { mode: "json" }),
   error: text("error"),
   ms: integer("ms"),
   createdAt: integer("created_at").notNull().$defaultFn(now),
@@ -100,7 +102,7 @@ CREATE INDEX IF NOT EXISTS jobs_status ON jobs(status, created_at);
 CREATE TABLE IF NOT EXISTS transcripts (cache_key TEXT PRIMARY KEY, engine TEXT NOT NULL, model TEXT NOT NULL, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS clips (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, rank INTEGER NOT NULL, candidate TEXT NOT NULL, evaluation TEXT NOT NULL, plan TEXT, planner TEXT, plan_error TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS clips_project ON clips(project_id, rank);
-CREATE TABLE IF NOT EXISTS renders (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, quality TEXT NOT NULL, ratio TEXT, renderer TEXT NOT NULL, path TEXT NOT NULL, thumb_path TEXT, status TEXT NOT NULL, verify TEXT, error TEXT, ms INTEGER, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS renders (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, quality TEXT NOT NULL, ratio TEXT, renderer TEXT NOT NULL, path TEXT NOT NULL, thumb_path TEXT, status TEXT NOT NULL, verify TEXT, qa TEXT, error TEXT, ms INTEGER, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS jev_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL, clip_id TEXT NOT NULL, rating TEXT NOT NULL, note TEXT, created_at INTEGER NOT NULL);
 `;

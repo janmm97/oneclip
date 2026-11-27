@@ -26,6 +26,8 @@ export const ProjectSettingsSchema = z.object({
    * Projects saved with the old choices (auto, local, openrouter) read as agent.
    */
   vision: z.preprocess((v) => (v === "off" ? "off" : "agent"), z.enum(["agent", "off"])),
+  /** strict: every finished clip is checked frame by frame (FFmpeg, faces, the user's agent) and fixed before Exports; off: no check. */
+  qa: z.enum(["strict", "off"]).default("strict"),
   /** Frame shapes to render each clip in (one file per ratio). */
   ratios: z.array(z.enum(RATIOS)).min(1).max(RATIOS.length).default(["9:16"]).transform((r) => [...new Set(r)]),
 });

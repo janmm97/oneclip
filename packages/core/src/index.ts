@@ -24,6 +24,7 @@ export * from "./vision/reframe.ts";
 export * from "./render/types.ts";
 export * from "./render/ass.ts";
 export * from "./render/ffmpeg-renderer.ts";
+export * from "./render/qa.ts";
 export * from "./db/index.ts";
 export * from "./pipeline/settings.ts";
 export * from "./pipeline/jobs.ts";
