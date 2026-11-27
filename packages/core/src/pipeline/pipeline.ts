@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, closeSync, statSync, writeFileSync } from "node:fs";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { and, asc, eq } from "drizzle-orm";
 import { clipFolder, safeName, type Config } from "../config.ts";
@@ -20,6 +20,7 @@ import { TemplatePlanner, type EditingPlanner } from "../plan/planners.ts";
 import { applyInstruction, describeChanges, EDIT_EXAMPLES, planToDraft } from "../plan/revise.ts";
 import { EditPlanSchema, RATIOS, ratioSlug, type EditPlan, type Ratio } from "../plan/schema.ts";
 import { redact } from "../proc.ts";
+import { fixPlan, reviewRender, type QaReport, type RenderReviewer } from "../render/qa.ts";
 import type { RenderJob, VideoRenderer } from "../render/types.ts";
 import { fetchEnglishSubtitles } from "../transcription/subtitles.ts";
 import type { Transcript, TranscriptionProvider, Word } from "../transcription/types.ts";
@@ -41,7 +42,12 @@ export interface PipelineDeps {
   /** Who describes each shot (the user's Claude Code); none: frames and contact sheets only. */
   describer?(settings: ProjectSettings): Promise<SceneDescriber | undefined>;
   renderers: Partial<Record<ProjectSettings["renderer"], VideoRenderer>>;
+  /** Who looks at the frames of a finished clip in the quality check (the user's Claude Code); none: FFmpeg and face checks only. */
+  reviewer?(settings: ProjectSettings): Promise<RenderReviewer | undefined>;
 }
+
+/** Review → fix → render again passes before a final clip is shown, at most. */
+export const QA_PASSES = 3;
 
 /** Jev answers cached in SQLite, keyed by a hash of the exact request. */
 export function dbJevCache(db: Db): JevCache {
@@ -419,7 +425,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);
-  const outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}${tag}.mp4` : `clip-${slug}.mp4`);
+  let outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}${tag}.mp4` : `clip-${slug}.mp4`);
   const thumbPath = join(dir, `clip-${slug}.jpg`);
   mkdirSync(dir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
@@ -427,41 +433,100 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   // Chosen renderer first; FFmpeg-only as the fallback if it fails or isn't installed.
   const order = [...new Set([settings.renderer, "ffmpeg" as const])].map((k) => deps.renderers[k]).filter((r): r is VideoRenderer => Boolean(r));
   const problems: string[] = [];
-  for (const renderer of order) {
-    const started = Date.now();
-    await updateJob(db, job.id, { stage: "render", progress: 0, message: `Rendering ${quality} with ${renderer.name}` });
-    const rj: RenderJob = {
-      sourcePath: project.sourcePath,
-      source: project.sourceInfo as MediaInfo,
-      plan,
-      outPath,
-      workDir,
-      quality,
-      onProgress: (f) => progressUpdate(db, job.id, { progress: Math.min(0.97, f), message: `Rendering ${quality} with ${renderer.name}: ${Math.round(f * 100)}%` }),
-    };
-    try {
-      await renderer.render(rj);
-      const v = await verifyRender(cfg.ffprobe, outPath, { width: plan.output.width, height: plan.output.height, duration: plan.outputDuration });
-      if (!v.ok) throw new Error(`Output check failed: ${v.problems.join("; ")}`);
-      await thumbnail(cfg.ffmpeg, outPath, Math.min(1, plan.outputDuration / 2), thumbPath);
-      await db.insert(renders).values({
-        id: randomUUID(),
-        projectId: project.id,
-        clipId: clip.id,
+  const renderTo = async (p: EditPlan, path: string, note = "") => {
+    for (const renderer of order) {
+      const started = Date.now();
+      await updateJob(db, job.id, { stage: "render", progress: 0, message: `Rendering ${quality}${note} with ${renderer.name}` });
+      const rj: RenderJob = {
+        sourcePath: project.sourcePath,
+        source: project.sourceInfo as MediaInfo,
+        plan: p,
+        outPath: path,
+        workDir,
         quality,
-        ratio,
-        renderer: renderer.name,
-        path: outPath,
-        thumbPath,
-        status: "done",
-        verify: v.info,
-        ms: Date.now() - started,
-      });
-      await updateJob(db, job.id, { status: "done", progress: 1, message: `Rendered with ${renderer.name}${problems.length ? ` (after: ${problems.join("; ")})` : ""}` });
-      return;
-    } catch (e) {
-      problems.push(`${renderer.name}: ${redact((e as Error).message).slice(0, 300)}`);
+        onProgress: (f) => progressUpdate(db, job.id, { progress: Math.min(0.97, f), message: `Rendering ${quality}${note} with ${renderer.name}: ${Math.round(f * 100)}%` }),
+      };
+      try {
+        await renderer.render(rj);
+        const v = await verifyRender(cfg.ffprobe, path, { width: p.output.width, height: p.output.height, duration: p.outputDuration });
+        if (!v.ok) throw new Error(`Output check failed: ${v.problems.join("; ")}`);
+        return { renderer, v, ms: Date.now() - started };
+      } catch (e) {
+        problems.push(`${renderer.name}: ${redact((e as Error).message).slice(0, 300)}`);
+      }
     }
+    return undefined;
+  };
+
+  let done = await renderTo(plan, outPath);
+  // The strict check: review the finished file, fix what has a fix, render again, until clean or out of passes.
+  let qa: QaReport | undefined;
+  if (done && quality === "final" && settings.qa === "strict") {
+    const reviewer = await deps.reviewer?.(settings).catch(() => undefined);
+    const fixed: string[] = [];
+    const moved = new Set<number>(); // caption pages already moved, so a later pass never flips one back
+    let current = plan;
+    let path = outPath;
+    for (let pass = 1; ; pass++) {
+      await updateJob(db, job.id, { stage: "render", progress: 0.98, message: `Quality check ${pass}/${QA_PASSES}: reviewing the finished clip frame by frame` });
+      // The check must never lose a finished render: FFmpeg missing or timing out here keeps the file and says so.
+      const r = await reviewRender({ ffmpeg: cfg.ffmpeg, path, plan: current, workDir: join(workDir, `qa-${pass}`), modelsDir: vision.modelsDir, targetLufs: current.audio.targetLufs, reviewer }).catch(
+        (e: Error): Awaited<ReturnType<typeof reviewRender>> => ({
+          verdict: "checks-only",
+          reviewer: "checks",
+          frames: 0,
+          issues: [{ at: 0, kind: "other", severity: "minor", detail: `The quality check couldn't run: ${redact(e.message).slice(0, 160)}`, fix: "none", by: "checks" }],
+        }),
+      );
+      const fix = pass < QA_PASSES ? fixPlan(current, r.issues, moved) : { plan: current, changes: [] };
+      const report = (): QaReport => ({ ...r, verdict: r.verdict === "pass" && fixed.length ? "fixed" : r.verdict, passes: pass, fixed });
+      if (!fix.changes.length) {
+        qa = report();
+        break;
+      }
+      await logStep(db, job.id, `Quality check ${pass}: ${r.issues.length} problem(s). Fixing: ${fix.changes.join("; ")}`);
+      const next = join(workDir, `qa-${pass + 1}.mp4`);
+      const again = await renderTo(fix.plan, next, ` (fix ${pass})`);
+      if (!again) {
+        // Keep the last good file and say the fix didn't render.
+        qa = report();
+        qa.issues.push({ at: 0, kind: "other", severity: "major", detail: `The fixed version didn't render: ${problems.at(-1) ?? "unknown error"}`, fix: "none", by: "checks" });
+        break;
+      }
+      fixed.push(...fix.changes);
+      current = fix.plan;
+      path = next;
+      done = again;
+    }
+    if (path !== outPath) {
+      // A failed copy must never lose the fixed render: point Exports at the file where it sits.
+      try {
+        copyFileSync(path, outPath);
+      } catch {
+        outPath = path;
+      }
+    }
+  }
+  if (done) {
+    // No thumbnail is no reason to drop a good render.
+    await thumbnail(cfg.ffmpeg, outPath, Math.min(1, plan.outputDuration / 2), thumbPath).catch(() => undefined);
+    await db.insert(renders).values({
+      id: randomUUID(),
+      projectId: project.id,
+      clipId: clip.id,
+      quality,
+      ratio,
+      renderer: done.renderer.name,
+      path: outPath,
+      thumbPath,
+      status: "done",
+      verify: done.v.info,
+      qa,
+      ms: done.ms,
+    });
+    const check = qa ? `. Quality check: ${qa.verdict === "pass" ? "passed" : qa.verdict === "fixed" ? `fixed ${qa.fixed.length} problem(s)` : qa.verdict === "issues" ? `${qa.issues.length} problem(s) left` : "FFmpeg and face checks only"}` : "";
+    await updateJob(db, job.id, { status: "done", progress: 1, message: `Rendered with ${done.renderer.name}${problems.length ? ` (after: ${problems.join("; ")})` : ""}${check}` });
+    return;
   }
   await db.insert(renders).values({
     id: randomUUID(),

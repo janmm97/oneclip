@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { clipFolder, config, type Db, ensureDirs, openDb, schema } from "@oneclip/core";
+import { clipFolder, config, type Db, ensureDirs, openDb, type QaReport, schema } from "@oneclip/core";
 import { asc, desc, eq } from "drizzle-orm";
 
 /** One DB handle per server process (survives Next dev hot reloads). */
@@ -59,7 +59,7 @@ export async function projectView(id: string) {
     project: { ...safeProject, fileName: _s.split(/[\\/]/).pop() ?? "", clipsFolder },
     jobs,
     clips: clips.map((c) => ({ ...c, rating: feedback.find((f) => f.clipId === c.id)?.rating ?? null })),
-    renders: renders.map(({ path: _p, thumbPath, ...r }) => ({ ...r, hasThumb: Boolean(thumbPath) })),
+    renders: renders.map(({ path: _p, thumbPath, qa, ...r }) => ({ ...r, qa: (qa ?? null) as QaReport | null, hasThumb: Boolean(thumbPath) })),
   };
 }
 
