@@ -1,12 +1,13 @@
 "use client";
 
-import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, RATIOS, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
-import { Check, Link2, Minus, Play, Plus } from "lucide-react";
+import { CONTENT_TYPES, DURATION_PRESETS, extractYouTubeId, type Ratio, type YouTubeMeta } from "@oneclip/core/browser";
+import { ChevronRight, Link2, Minus, Play, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useRef, useState } from "react";
 import { Button, Field, Input, Notice, Segmented, Select } from "@/components/ui";
-import { clampTopN, TOP_N_MAX, TOP_N_MIN, toggleRatio } from "@/lib/form";
+import { clampTopN, TOP_N_MAX, TOP_N_MIN } from "@/lib/form";
 import { api, cn } from "@/lib/utils";
+import { PlacesPicker } from "./places-picker";
 
 /** Plain names for the length presets; the seconds stay as a small second line so four segments fit a phone. */
 const LENGTH_NAMES: Record<string, string> = { quick: "Super short", short: "Short", standard: "Medium", extended: "Long" };
@@ -26,13 +27,16 @@ const RENDERERS = [
   ["ffmpeg", "Simple (faster)"],
 ] as const;
 
-/** A settings group, like a section in iOS Settings. */
-function Group({ title, children }: { title: string; children: ReactNode }) {
+/** A fold-away group: beginners never need to open it, every setting is still one tap away. */
+function Disclosure({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="grid gap-4 rounded-lg border border-line bg-raised p-4">
-      <h2 className="text-xs font-semibold tracking-wide text-muted uppercase">{title}</h2>
-      {children}
-    </section>
+    <details className="group/d rounded-lg border border-line bg-raised/50">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 rounded-lg px-4 text-sm font-medium text-muted hover:text-fg [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-4 transition-transform duration-150 group-open/d:rotate-90" aria-hidden />
+        {title}
+      </summary>
+      <div className="grid gap-4 px-4 pt-1 pb-4">{children}</div>
+    </details>
   );
 }
 
@@ -46,8 +50,6 @@ function Row({ label, hint, children }: { label: string; hint?: ReactNode; child
     </div>
   );
 }
-/** Where each shape gets posted, in plain words. */
-const PLACES: Record<Ratio, string> = { "9:16": "TikTok, Reels, Shorts (tall)", "4:5": "Instagram post", "1:1": "Square", "16:9": "YouTube (wide)", "4:3": "Old-TV shape" };
 const CAPTIONS = [
   ["english", "English"],
   ["original", "Same language as the video"],
@@ -149,70 +151,11 @@ export function NewProject() {
         <p className="-mt-2 text-xs text-muted">OneClip gets this video when it starts making clips.</p>
       ) : null}
 
-      <Group title="Your clips">
-        <Row label="How long?">
-          <Segmented label="How long?" options={PRESETS} value={s.preset} onChange={(preset) => setS({ ...s, preset })} />
-        </Row>
-        <div className="grid gap-4 sm:grid-cols-[auto_minmax(0,1fr)]">
-          <Row label="How many clips?">
-            <div className="flex h-10 w-fit items-center gap-1 rounded-md bg-raised p-1">
-              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="Fewer clips" disabled={s.topN <= TOP_N_MIN} onClick={() => setS({ ...s, topN: clampTopN(s.topN - 1) })}>
-                <Minus aria-hidden />
-              </Button>
-              <output className="num w-8 text-center font-semibold" aria-live="polite">
-                {s.topN}
-              </output>
-              <Button type="button" variant="ghost" size="icon" className="size-8" aria-label="More clips" disabled={s.topN >= TOP_N_MAX} onClick={() => setS({ ...s, topN: clampTopN(s.topN + 1) })}>
-                <Plus aria-hidden />
-              </Button>
-            </div>
-          </Row>
-          <Row label="Where will you post?" hint={`${s.topN} clips × ${s.ratios.length} ${s.ratios.length === 1 ? "shape" : "shapes"} = ${s.topN * s.ratios.length} videos`}>
-            <div className="flex flex-wrap gap-2" role="group" aria-label="Where will you post?">
-              {RATIOS.map((r) => {
-                const on = s.ratios.includes(r);
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    aria-pressed={on}
-                    aria-disabled={on && s.ratios.length === 1 ? true : undefined}
-                    onClick={() => setS({ ...s, ratios: toggleRatio(s.ratios, r) })}
-                    className={cn(
-                      "press inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[0.8125rem] font-medium",
-                      on ? "border-tally/50 bg-tally/15 text-tally-fg" : "border-line text-muted hover:text-fg",
-                    )}
-                  >
-                    {on ? <Check className="size-3.5" aria-hidden /> : null}
-                    {PLACES[r]}
-                  </button>
-                );
-              })}
-            </div>
-          </Row>
-        </div>
-      </Group>
-
-      <Group title="Expert settings">
-        <Row label="Caption style">
-          <Segmented label="Caption style" options={RENDERERS} value={s.renderer} onChange={(renderer) => setS({ ...s, renderer })} />
-        </Row>
-        <Field label="Subtitles" hint="English uses the video's own English subtitles when it has them, otherwise OneClip translates the words on this computer.">
-          <Select options={CAPTIONS} value={s.captions} onChange={(e) => setS({ ...s, captions: e.target.value })} />
-        </Field>
-        <Field label="What kind of video is it?" hint="Helps Jev, OneClip's clip judge, spot the best part: the chorus of a song, the end of a story, the big play in a game.">
-          <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
-        </Field>
-        <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, then OpenCode, then the basic one. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
-          <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
-        </Field>
-        <p className="text-xs text-muted">Uses a little Jev credit for each moment it checks. Making clips again from the same video is free.</p>
-      </Group>
-
-      <label className="flex items-start gap-2.5 text-sm">
+      <label className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm">
         <input
           ref={ownership}
           type="checkbox"
+          role="switch"
           checked={authorized}
           onChange={(e) => {
             setAuthorized(e.target.checked);
@@ -220,8 +163,17 @@ export function NewProject() {
           }}
           aria-describedby={needsTick ? "tick-first" : undefined}
           aria-invalid={needsTick || undefined}
-          className="mt-0.5 size-4 accent-(--color-tally)"
+          className="peer sr-only"
         />
+        <span
+          aria-hidden
+          className={cn(
+            "relative h-6 w-10 shrink-0 rounded-full border transition-colors duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-tally peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-bg",
+            authorized ? "border-tally bg-tally" : needsTick ? "border-bad bg-raised" : "border-line bg-raised",
+          )}
+        >
+          <span className={cn("absolute top-0.5 size-4.5 rounded-full bg-fg shadow transition-[left] duration-150", authorized ? "left-[1.1rem] bg-tally-ink" : "left-0.5")} />
+        </span>
         <span>This is my video, or I have permission to use it</span>
       </label>
       {needsTick ? (
@@ -232,12 +184,46 @@ export function NewProject() {
 
       {error ? <Notice>{error}</Notice> : null}
 
-      <div className="flex items-center justify-end gap-4">
-        <Button type="submit" variant="primary" loading={busy === "go"}>
-          <Play aria-hidden />
-          Make my clips
-        </Button>
-      </div>
+      <Button type="submit" variant="primary" loading={busy === "go"} className="min-h-[44px] w-full sm:w-fit">
+        <Play aria-hidden />
+        Make my clips
+      </Button>
+
+      <Disclosure title="More options">
+        <PlacesPicker value={s.ratios} onChange={(ratios) => setS({ ...s, ratios })} />
+        <Row label="How long?">
+          <Segmented label="How long?" options={PRESETS} value={s.preset} onChange={(preset) => setS({ ...s, preset })} />
+        </Row>
+        <Row label="How many clips?" hint={`${s.topN} ${s.topN === 1 ? "clip" : "clips"} × ${s.ratios.length} ${s.ratios.length === 1 ? "shape" : "shapes"} = ${s.topN * s.ratios.length} videos`}>
+          <div className="flex h-[44px] w-fit items-center gap-1 rounded-md bg-raised p-1">
+            <Button type="button" variant="ghost" size="icon" className="size-9" aria-label="Fewer clips" disabled={s.topN <= TOP_N_MIN} onClick={() => setS({ ...s, topN: clampTopN(s.topN - 1) })}>
+              <Minus aria-hidden />
+            </Button>
+            <output className="num w-8 text-center font-semibold" aria-live="polite">
+              {s.topN}
+            </output>
+            <Button type="button" variant="ghost" size="icon" className="size-9" aria-label="More clips" disabled={s.topN >= TOP_N_MAX} onClick={() => setS({ ...s, topN: clampTopN(s.topN + 1) })}>
+              <Plus aria-hidden />
+            </Button>
+          </div>
+        </Row>
+
+        <Disclosure title="Expert settings">
+          <Field label="What kind of video is it?" hint="Helps Jev, OneClip's clip judge, spot the best part: the chorus of a song, the end of a story, the big play in a game.">
+            <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
+          </Field>
+          <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, then OpenCode, then the basic one. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
+            <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
+          </Field>
+          <Row label="Caption style">
+            <Segmented label="Caption style" options={RENDERERS} value={s.renderer} onChange={(renderer) => setS({ ...s, renderer })} />
+          </Row>
+          <Field label="Subtitles" hint="English uses the video's own English subtitles when it has them, otherwise OneClip translates the words on this computer.">
+            <Select options={CAPTIONS} value={s.captions} onChange={(e) => setS({ ...s, captions: e.target.value })} />
+          </Field>
+          <p className="text-xs text-muted">Uses a little Jev credit for each moment it checks. Making clips again from the same video is free.</p>
+        </Disclosure>
+      </Disclosure>
     </form>
   );
 }
