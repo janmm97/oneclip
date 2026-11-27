@@ -4,7 +4,7 @@
  * The window uses its own browser profile in .oneclip/browser, so it gets its own taskbar entry
  * and never touches your normal Chrome tabs, logins or extensions.
  */
-import { spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -47,16 +47,35 @@ async function isUp(url: string): Promise<boolean> {
   }
 }
 
+/** Stops the server we started, children included (on Windows child.kill() only reaches the shell). */
+function stopServer(child: ChildProcess) {
+  if (child.pid === undefined || child.exitCode !== null) return;
+  if (process.platform === "win32") spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+  else child.kill();
+}
+
+/** Waits for the server to answer; gives up if the dev process dies or 3 minutes pass. */
+async function waitUntilUp(url: string, child: ChildProcess) {
+  let exited = false;
+  child.once("exit", () => (exited = true));
+  const deadline = Date.now() + 180_000;
+  while (!(await isUp(url))) {
+    if (exited) throw new Error("`pnpm dev` stopped before OneClip was ready. Run `pnpm dev` to see why.");
+    if (Date.now() > deadline) throw new Error(`OneClip didn't answer on ${url} within 3 minutes. Run \`pnpm dev\` to see why.`);
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
+
 async function main() {
-  let startedServer = false;
+  let server: ChildProcess | undefined;
   if (!(await isUp(URL_))) {
     console.log("Starting OneClip…");
-    spawn("pnpm", ["dev"], { stdio: "inherit", shell: process.platform === "win32" });
-    startedServer = true;
-    const deadline = Date.now() + 180_000;
-    while (!(await isUp(URL_))) {
-      if (Date.now() > deadline) throw new Error(`OneClip didn't answer on ${URL_} within 3 minutes. Run \`pnpm dev\` to see why.`);
-      await new Promise((r) => setTimeout(r, 1000));
+    server = process.platform === "win32" ? spawn("pnpm dev", { stdio: "inherit", shell: true }) : spawn("pnpm", ["dev"], { stdio: "inherit" });
+    try {
+      await waitUntilUp(URL_, server);
+    } catch (e) {
+      stopServer(server);
+      throw e;
     }
   }
 
@@ -68,7 +87,7 @@ async function main() {
     spawn(browser, appArgs(URL_, profile), { detached: true, stdio: "ignore" }).unref();
     console.log(`OneClip is open in its own window (${URL_}).`);
   }
-  if (startedServer) console.log("Keep this terminal open while you use OneClip. Press Ctrl+C to stop it.");
+  if (server) console.log("Keep this terminal open while you use OneClip. Press Ctrl+C to stop it.");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
