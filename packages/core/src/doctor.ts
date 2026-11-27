@@ -1,6 +1,6 @@
 import type { Config } from "./config.ts";
 import { OneClient, OneError } from "./one/client.ts";
-import { pickPlanner } from "./plan/planners.ts";
+import { detectAgents, pickPlanner } from "./plan/planners.ts";
 import { runProcess } from "./proc.ts";
 import { resolveYtDlp } from "./media/source.ts";
 import { FfmpegRenderer } from "./render/ffmpeg-renderer.ts";
@@ -85,7 +85,10 @@ export async function runChecks(cfg: Config, opts: { one?: OneClient; testJev?: 
   add({ id: "transcriber", label: "Transcription engine", required: true, ok: fw.ok || onnx.ok, detail: fw.ok ? fw.detail : onnx.ok ? `${onnx.detail} (faster-whisper: ${fw.detail.replace(/^faster-whisper unavailable: /, "").slice(0, 160)})` : fw.detail, fix: fw.ok ? undefined : "Optional: run pnpm run setup (Python 3.10–3.12) for faster-whisper (faster, GPU). The built-in ONNX engine works without it." });
 
   const planner = await pickPlanner("auto", cfg, one);
-  add({ id: "planner", label: "Editing agent", required: false, ok: !planner.name.startsWith("template"), detail: planner.name, fix: "Optional: run `one add open-router` for AI edit plans with cheap models (or install Claude Code or OpenCode); otherwise OneClip uses its deterministic template planner" });
+  add({ id: "planner", label: "Editing agent", required: false, ok: !planner.name.startsWith("template"), detail: planner.name, fix: "Optional: run `one add open-router` for AI edit plans with cheap models (or install Claude Code, Codex or OpenCode); otherwise OneClip uses its deterministic template planner" });
+  const local = (await detectAgents(cfg, one)).filter((a) => a.id !== "openrouter");
+  const found = local.filter((a) => a.ok);
+  add({ id: "chat-agent", label: "Chat edits (your coding agent)", required: false, ok: found.length > 0, detail: found.length ? found.map((a) => `${a.name} ${a.detail}`).join(", ") : "none found", fix: "Install Claude Code, Codex or OpenCode, or set CLAUDE_BIN / CODEX_BIN / OPENCODE_BIN in .env to its full path. Without one, chat edits use the built-in rules (\"split shot 2\", \"cut 3 s from the end\")." });
 
   if (opts.remotion) {
     const r = await opts.remotion.available();

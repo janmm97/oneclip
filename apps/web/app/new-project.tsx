@@ -58,6 +58,7 @@ const PLANNERS = [
   ["auto", "Automatic"],
   ["openrouter", "Online AI (small cost)"],
   ["claude-code", "Claude Code (on this computer)"],
+  ["codex", "Codex (on this computer)"],
   ["opencode", "OpenCode (on this computer)"],
   ["template", "Basic, no AI"],
 ] as const;
@@ -203,7 +204,7 @@ export function NewProject() {
         <Field label="What kind of video is it?" hint="Helps Jev, OneClip's clip judge, spot the best part: the chorus of a song, the end of a story, the big play in a game.">
           <Select options={CONTENT} value={s.content} onChange={(e) => setS({ ...s, content: e.target.value })} />
         </Field>
-        <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, then OpenCode, then the basic one. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
+        <Field label="AI helper" hint="Automatic tries the online AI, then Claude Code, Codex and OpenCode, then the basic one. Chat edits use your coding agent first. The words of each clip go to the AI helper you pick (and to Jev). Pick Basic to keep this step on this computer.">
           <Select options={PLANNERS} value={s.planner} onChange={(e) => setS({ ...s, planner: e.target.value })} />
         </Field>
         <p className="text-xs text-muted">Uses a little Jev credit for each moment it checks. Making clips again from the same video is free.</p>
