@@ -16,7 +16,8 @@ function extraDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[] 
 
 /** The JS file an npm/pnpm `.cmd` shim runs (`"%dp0%\node_modules\…\cli.js"`), so it can be started with Node and no shell. */
 export function shimTarget(shim: string, text: string): string | undefined {
-  const m = /"%(?:~)?dp0%?\\?([^"%]+\.(?:c|m)?js)"/i.exec(text);
+  // The last match: shims also name `"%dp0%\node.exe"` in their "is a local node here?" check, before the real target.
+  const m = [...text.matchAll(/"%(?:~)?dp0%?\\?([^"%]+\.(?:(?:c|m)?js|exe))"/gi)].pop();
   // Shims always write `\`; split on it so the path is right on any OS.
   return m ? join(dirname(shim), ...m[1]!.split("\\")) : undefined;
 }
@@ -46,7 +47,7 @@ export function resolveCommand(cmd: string, env: NodeJS.ProcessEnv = process.env
       if (win && /\.(cmd|bat)$/i.test(p)) {
         const js = shimTarget(p, readFileSync(p, "utf8"));
         if (!js || !existsSync(js)) continue;
-        found = { cmd: process.execPath, pre: [js] };
+        found = /\.exe$/i.test(js) ? { cmd: js, pre: [] } : { cmd: process.execPath, pre: [js] }; // a native exe (newer Claude Code) runs as it is
       } else found = { cmd: p, pre: [] };
       break outer;
     }
