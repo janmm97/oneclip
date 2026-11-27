@@ -54,6 +54,14 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
   const working = edits.some(busy);
   const renderAfter = (e: Job) => jobs.find((j) => j.kind === "render" && j.clipId === clipId && j.quality === "preview" && j.createdAt >= e.createdAt);
   const progress = edits.reduce((n, e) => n + (e.log?.length ?? 0), 0) + jobs.filter(busy).length;
+  const [agent, setAgent] = useState<string>();
+
+  // Say up front who will make the change: the user's own agent, or only the built-in rules.
+  useEffect(() => {
+    api<{ agents: string[]; aiOff: boolean }>(`/api/projects/${projectId}/edit`)
+      .then((r) => setAgent(r.agents[0] ? `Editing with ${r.agents[0]}` : r.aiOff ? "AI is off: built-in rules only" : "No coding agent found: built-in rules only"))
+      .catch(() => setAgent(undefined));
+  }, [projectId]);
 
   // Scroll to the newest step whenever one arrives.
   useEffect(() => {
@@ -84,7 +92,7 @@ export function EditChat({ projectId, clipId, jobs, refresh }: { projectId: stri
         <h2 id="edit-chat" className="text-sm font-medium">
           Ask for changes
         </h2>
-        <span className="ml-auto text-xs text-muted">{working ? "Working on it…" : "Ready"}</span>
+        <span className="ml-auto text-xs text-muted">{working ? "Working on it…" : (agent ?? "Ready")}</span>
       </header>
 
       <ol ref={feed} className="grid flex-1 content-start gap-4 overflow-y-auto px-4 py-4" aria-live="polite">

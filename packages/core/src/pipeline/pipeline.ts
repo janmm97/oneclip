@@ -37,6 +37,8 @@ export interface PipelineDeps {
   transcriber(settings: ProjectSettings): Promise<TranscriptionProvider>;
   evaluator(cache: JevCache): HookEvaluator;
   planner(settings: ProjectSettings): Promise<EditingPlanner>;
+  /** Agents to try, in order, for a chat edit. Defaults to `planner` alone. */
+  editPlanners?(settings: ProjectSettings): Promise<EditingPlanner[]>;
   /** Who describes each shot (the user's Claude Code); none: frames and contact sheets only. */
   describer?(settings: ProjectSettings): Promise<SceneDescriber | undefined>;
   renderers: Partial<Record<ProjectSettings["renderer"], VideoRenderer>>;
@@ -581,20 +583,32 @@ export async function runEdit(deps: PipelineDeps, job: Job): Promise<void> {
   const candidate = clip.candidate as ClipCandidate;
   let draft: typeof before | undefined;
   let by = "rules";
-  const planner = await deps.planner(settings);
-  if (!(planner instanceof TemplatePlanner)) {
+  // The user's own agents first (Claude Code, Codex, OpenCode, then OpenRouter); the built-in rules last.
+  const planners = deps.editPlanners ? await deps.editPlanners(settings) : [await deps.planner(settings)].filter((p) => !(p instanceof TemplatePlanner));
+  const failed: string[] = [];
+  for (const planner of planners) {
     await step(`Asking ${planner.name} to edit`);
     await updateJob(db, job.id, { progress: 0.2 });
     try {
       draft = await planner.plan({ candidate, words, style: {}, revision: { instruction, current: before } });
       if (!draft.segments?.length && !draft.keep.length) draft.segments = before.segments;
       by = planner.name;
+      break;
     } catch (e) {
-      await step(`The agent couldn't do it (${redact((e as Error).message).slice(0, 160)}): trying the built-in editor`);
+      failed.push(planner.name);
+      await step(`${planner.name} couldn't do it: ${redact((e as Error).message).slice(0, 200)}`);
     }
   }
-  draft ??= applyInstruction(before, instruction);
-  if (!draft) throw new Error(`I didn't understand that. Try: ${EDIT_EXAMPLES.slice(0, 5).map((e) => `"${e}"`).join(", ")}`);
+  if (!draft) {
+    if (planners.length) await step("Trying the built-in editor");
+    draft = applyInstruction(before, instruction);
+  }
+  if (!draft) {
+    const why = planners.length
+      ? `${failed.join(", ")} couldn't make this change (see the steps above)`
+      : "No editing agent was found on this computer (Claude Code, Codex or OpenCode), and OpenRouter isn't connected, so only the built-in editor ran";
+    throw new Error(`${why}. The built-in editor understands requests like: ${EDIT_EXAMPLES.slice(0, 5).map((e) => `"${e}"`).join(", ")}`);
+  }
 
   const changes = describeChanges(before, draft);
   for (const line of changes) await step(line);

@@ -237,8 +237,16 @@ describe.skipIf(!hasFfmpeg)("pipeline (integration, mocked transcriber and Jev)"
     const bad = await enqueue(deps.db, { projectId, kind: "edit", clipId: clip.id, instruction: "make it go viral" });
     await runJob(deps, (await claimNext(deps.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
     const failed = await deps.db.select().from(schema.jobs).where(eq(schema.jobs.id, bad)).get();
-    expect(failed?.error).toMatch(/didn't understand.*Try:/s);
+    expect(failed?.error).toMatch(/No editing agent was found.*understands requests like:/s);
     expect((await deps.db.select().from(schema.clips).where(eq(schema.clips.id, clip.id)).get())?.plan).toEqual(after?.plan);
+    // The user's agent is asked first; when it fails, the chat says so and the built-in rules still run.
+    const broken = { name: "Codex", available: async () => ({ ok: true, detail: "" }), plan: async () => { throw new Error("model refused"); } };
+    const withAgent = { ...deps, editPlanners: async () => [broken] };
+    const viaAgent = await enqueue(deps.db, { projectId, kind: "edit", clipId: clip.id, instruction: "make it go viral" });
+    await runJob(withAgent, (await claimNext(deps.db)) as NonNullable<Awaited<ReturnType<typeof claimNext>>>);
+    const tried = await deps.db.select().from(schema.jobs).where(eq(schema.jobs.id, viaAgent)).get();
+    expect(tried?.log).toEqual(expect.arrayContaining(["Asking Codex to edit", "Codex couldn't do it: model refused", "Trying the built-in editor"]));
+    expect(tried?.error).toMatch(/^Codex couldn't make this change/);
   }, 300_000);
 
   it("queues a link for download instead of rejecting it", async () => {
