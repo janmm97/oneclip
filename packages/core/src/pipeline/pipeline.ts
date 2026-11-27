@@ -423,7 +423,7 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   // Finished clips go straight to the visible clips folder; previews stay in the project's scratch folder.
   const outDir = quality === "final" ? clipFolder(cfg, project) : dir;
   const name = safeName(plan.title, 60);
-  const outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}${tag}.mp4` : `clip-${slug}.mp4`);
+  let outPath = join(outDir, quality === "final" ? `${String(clip.rank).padStart(2, "0")}${name ? `-${name}` : ""}${tag}.mp4` : `clip-${slug}.mp4`);
   const thumbPath = join(dir, `clip-${slug}.jpg`);
   mkdirSync(dir, { recursive: true });
   mkdirSync(outDir, { recursive: true });
@@ -462,12 +462,13 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
   if (done && quality === "final" && settings.qa === "strict") {
     const reviewer = await deps.reviewer?.(settings).catch(() => undefined);
     const fixed: string[] = [];
+    const moved = new Set<number>(); // caption pages already moved, so a later pass never flips one back
     let current = plan;
     let path = outPath;
     for (let pass = 1; ; pass++) {
       await updateJob(db, job.id, { stage: "render", progress: 0.98, message: `Quality check ${pass}/${QA_PASSES}: reviewing the finished clip frame by frame` });
       const r = await reviewRender({ ffmpeg: cfg.ffmpeg, path, plan: current, workDir: join(workDir, `qa-${pass}`), modelsDir: vision.modelsDir, targetLufs: current.audio.targetLufs, reviewer });
-      const fix = pass < QA_PASSES ? fixPlan(current, r.issues) : { plan: current, changes: [] };
+      const fix = pass < QA_PASSES ? fixPlan(current, r.issues, moved) : { plan: current, changes: [] };
       const report = (): QaReport => ({ ...r, verdict: r.verdict === "pass" && fixed.length ? "fixed" : r.verdict, passes: pass, fixed });
       if (!fix.changes.length) {
         qa = report();
@@ -487,10 +488,18 @@ export async function runRender(deps: PipelineDeps, job: Job): Promise<void> {
       path = next;
       done = again;
     }
-    if (path !== outPath) copyFileSync(path, outPath);
+    if (path !== outPath) {
+      // A failed copy must never lose the fixed render: point Exports at the file where it sits.
+      try {
+        copyFileSync(path, outPath);
+      } catch {
+        outPath = path;
+      }
+    }
   }
   if (done) {
-    await thumbnail(cfg.ffmpeg, outPath, Math.min(1, plan.outputDuration / 2), thumbPath);
+    // No thumbnail is no reason to drop a good render.
+    await thumbnail(cfg.ffmpeg, outPath, Math.min(1, plan.outputDuration / 2), thumbPath).catch(() => undefined);
     await db.insert(renders).values({
       id: randomUUID(),
       projectId: project.id,

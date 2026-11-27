@@ -234,7 +234,7 @@ Every render is checked with FFprobe (size, duration, H.264 video, an audio trac
 
 ## Privacy
 
-- Your video, audio and renders never leave your machine. With `vision` on `agent` (the default) and Claude Code installed, one still frame per shot goes to Anthropic through your own Claude Code; use `--vision off` to keep frames local.
+- Your video, audio and renders never leave your machine. With `vision` on `agent` (the default) and Claude Code installed, one still frame per shot goes to Anthropic through your own Claude Code. The quality check on final renders sends up to 40 frames of the finished clip the same way. Use `--vision off` to keep all frames local (it turns off both; set `qa: "off"` to skip the quality check alone).
 - Clip **text** (transcript excerpts) goes to TypeSafe through One for scoring, and to OpenRouter through One (or Claude Code or OpenCode) for edit plans. Pick the `template` planner to keep it off every AI service except TypeSafe.
 - Links are downloaded to your computer; nothing is uploaded to YouTube or anywhere else. There is no telemetry.
 - The web app listens on 127.0.0.1 only and rejects requests with another Host or Origin.
