@@ -8,6 +8,7 @@ This repo gives your agent a set of skills:
 
 - **`oneclip-editor`** (`skills/oneclip-editor/SKILL.md`): how to edit and remix clips with OneClip. Read it before any editing task.
 - **`oneclip-hooks`** (`skills/oneclip-hooks/SKILL.md`): how to find the moments worth clipping and open each clip on a hook that stops the scroll (hook types, per-genre and per-platform rules, a local hook scanner, variants). Use it before `oneclip-editor` when picking or judging clips.
+- **`oneclip-clipping`** (`skills/oneclip-clipping/SKILL.md`): the professional clipper's playbook: which moments to use, clip arc and length, pacing, silences, J/L cuts, reframing, safe zones, captions, audio, loops, originality and copyright, packaging and posting, each mapped to plan fields. Use it with `oneclip-hooks` when picking clips and before writing a plan.
 - **Motion-graphics skills** (HyperFrames, Remotion, LottieFiles motion design, animate, claude-motion and the others in `skills/motion-skills.json`): for captions, titles, animation and motion design.
 
 They are installed into `.claude/skills/` and `.agents/skills/` (both git-ignored):

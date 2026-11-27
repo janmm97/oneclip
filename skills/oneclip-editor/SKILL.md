@@ -33,7 +33,7 @@ Everything is in the project folder, `.oneclip/projects/<id>/` (or `$ONECLIP_DAT
 
 Before writing anything, decide in one or two sentences: **what is the moment, and what should the viewer feel?** Then build around it.
 
-- **Hook in the first 1–2 seconds.** Open on the strongest image or line: the goal, the punchline, the reveal, the reaction. Use the top `hooks.live.jsonl` scores and the shot `action`s to find it. A cold open that jumps to the payoff and then rewinds is fine. To pick moments, find the hook line and write the on-screen text hook, use the `oneclip-hooks` skill first.
+- **Hook in the first 1–2 seconds.** Open on the strongest image or line: the goal, the punchline, the reveal, the reaction. Use the top `hooks.live.jsonl` scores and the shot `action`s to find it. A cold open that jumps to the payoff and then rewinds is fine. To pick moments, find the hook line and write the on-screen text hook, use the `oneclip-hooks` skill first. For which scenes to use, clip length, pacing, reframing, captions, audio and originality, follow the `oneclip-clipping` skill.
 - **Cut on action and on sound.** Change shots when something moves or a beat or word lands, not in the middle of a still moment. Shot boundaries in `scenes.json` are natural cut points.
 - **Every shot earns its place.** Drop set-up, dead air and repeats. 1.5–4 s per shot for energy (sports, gameplay, montage); let a shot run when a person is talking or something is unfolding.
 - **Sound carries the cut.** Audio leads picture: let the next shot's sound start under the current picture (J-cut) by borrowing audio, or keep one continuous line of speech over several pictures.
