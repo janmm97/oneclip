@@ -1,8 +1,22 @@
-import { enqueue, schema } from "@oneclip/core";
+import { editPlanners, enqueue, ProjectSettingsSchema, schema } from "@oneclip/core";
 import { and, eq } from "drizzle-orm";
 import { app, guard, isId, json } from "@/lib/server";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+export const dynamic = "force-dynamic";
+
+/** Which agents a chat edit on this project will ask, in order (the chat shows the first). Empty: built-in rules only. */
+export async function GET(req: Request, { params }: Ctx) {
+  const blocked = guard(req);
+  if (blocked) return blocked;
+  const { id } = await params;
+  const { db, cfg } = app();
+  const project = isId(id) ? await db.select().from(schema.projects).where(eq(schema.projects.id, id)).get() : undefined;
+  if (!project) return json({ error: "No such project." }, 404);
+  const settings = ProjectSettingsSchema.parse(project.settings);
+  return json({ agents: (await editPlanners(settings.planner, cfg)).map((p) => p.name), aiOff: settings.planner === "template" });
+}
 
 /** Queue a chat edit on one clip: `{ clipId, instruction }`. The worker revises the plan and renders a new preview. */
 export async function POST(req: Request, { params }: Ctx) {

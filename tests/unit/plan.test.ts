@@ -226,7 +226,7 @@ describe("OpenRouterPlanner (mock One client)", () => {
   });
 
   it("is the auto choice when an OpenRouter connection exists, else falls through", async () => {
-    const cfg = { claudeBin: "no-such-claude-bin", opencodeBin: "no-such-opencode-bin", openrouterModels: DEFAULT_OPENROUTER_MODELS };
+    const cfg = { claudeBin: "no-such-claude-bin", codexBin: "no-such-codex-bin", opencodeBin: "no-such-opencode-bin", openrouterModels: DEFAULT_OPENROUTER_MODELS };
     const ok = { findOpenRouterConnection: async () => ({}) } as unknown as OneClient;
     const none = { findOpenRouterConnection: async () => { throw new Error("No OpenRouter connection in One"); } } as unknown as OneClient;
     expect((await pickPlanner("auto", cfg, ok)).name).toBe("OpenRouter via One (deepseek/deepseek-v4-flash)");

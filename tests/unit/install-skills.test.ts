@@ -52,7 +52,8 @@ writeFileSync(join(root, "skills", "oneclip-editor", "SKILL.md"), skill("oneclip
 mkdirSync(join(root, ".claude", "skills", "reel"), { recursive: true });
 writeFileSync(join(root, ".claude", "skills", "reel", "SKILL.md"), "mine");
 
-describe("install-skills", () => {
+// Each test spawns git many times; Windows CI runners take over the 5 s default.
+describe("install-skills", { timeout: 30_000 }, () => {
   it("installs every skill folder from every source into both agent folders", () => {
     manifest(["multi", "rootskill", "library", "dupe", "missing"]);
     const r = install();
