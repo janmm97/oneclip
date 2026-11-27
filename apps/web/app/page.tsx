@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui";
 import { app } from "@/lib/server";
 import { NewProject } from "./new-project";
+import { SetupBanner } from "./setup-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function Home() {
         <p className="mt-3 max-w-[62ch] text-[clamp(0.95rem,0.85rem+0.3vw,1.15rem)] text-muted">
           Paste a video link. OneClip finds the best moments and turns them into short clips for TikTok, Reels and Shorts, right on your computer.
         </p>
+        <SetupBanner />
         <NewProject />
       </section>
       <aside aria-labelledby="recent" className="lg:sticky lg:top-6 lg:self-start">
