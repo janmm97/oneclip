@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "concurrently -k -n web,worker -c cyan,magenta \"pnpm --filter @oneclip/web dev\" \"pnpm worker\"",
     "start": "concurrently -k -n web,worker -c cyan,magenta \"pnpm --filter @oneclip/web start\" \"pnpm worker\"",
+    "app": "tsx scripts/app.ts",
     "worker": "tsx workers/media/index.ts",
     "setup": "tsx scripts/setup.ts",
     "doctor": "tsx scripts/doctor.ts",

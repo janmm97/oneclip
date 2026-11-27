@@ -79,6 +79,8 @@ pnpm dev          # web app on http://127.0.0.1:3000 plus the media worker
 
 Use `pnpm run setup` and `pnpm run doctor`, not `pnpm setup` / `pnpm doctor`: those two names are pnpm's own built-in commands.
 
+**Open it as its own app.** `pnpm app` opens OneClip in its own window, with no tabs or address bar, using the Chrome (or Edge or Chromium) you already have. It starts the server first if it isn't running, so keep that terminal open. The window has its own browser profile in `.oneclip/browser`, so it gets its own taskbar icon and doesn't share your usual tabs, logins or extensions. Set `ONECLIP_BROWSER` to a browser's full path to pick a different one. To install it as an app with a desktop shortcut, open the browser menu while OneClip is showing, then **Cast, save and share → Install page as app** in Chrome or **Apps → Install this site as an app** in Edge.
+
 Want to try it without your own footage? `pnpm sample` makes a synthetic test video with speech, and `pnpm e2e` runs the whole pipeline on it.
 
 ## Using the app
