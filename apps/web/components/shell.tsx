@@ -4,6 +4,7 @@ import { Moon, Plus, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BrandLogo, BrandMark } from "@/components/brand";
 import { Switch } from "@/components/ui";
 import { THEME_KEY, type Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -28,11 +29,8 @@ function useTheme() {
 
 function Logo({ withName = true }: { withName?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2.5 font-semibold tracking-tight" aria-label="OneClip home">
-      <span className="grid size-8 place-items-center rounded-[0.6rem] bg-tally shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]" aria-hidden>
-        <span className="size-2.5 rounded-full bg-tally-ink" />
-      </span>
-      {withName ? <span className="text-[1.05rem]">OneClip</span> : null}
+    <Link href="/" className="flex items-center text-fg" aria-label="OneClip home">
+      {withName ? <BrandLogo className="h-7 w-auto" /> : <BrandMark className="size-8" />}
     </Link>
   );
 }
